@@ -1,0 +1,6 @@
+name = "telegram"
+main = "src/worker.js"
+compatibility_date = "2025-12-15"
+
+# ถ้าใช้ custom domain / route ให้กำหนด route ได้
+# routes = ["telegram.malemodel-bkk.workers.dev/*"]
