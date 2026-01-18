@@ -11,19 +11,30 @@
 
 import { handlePromo } from "./routes/promo";
 
-type Env = {
-  ALLOWED_ORIGIN?: string;        // legacy: single or comma-separated
-  ALLOWED_ORIGINS?: string;       // preferred: comma-separated
-  // your existing secrets/vars (optional typing here)
-  PROMO_CODES_JSON?: string;
-  PROMOTION_MONTHLY_JSON?: string;
+export default {
+  async fetch(req: Request, env: any) {
+    const url = new URL(req.url);
+    const path = url.pathname;
+
+    if (path === "/ping") {
+      return json({ ok: true, ping: "OK" });
+    }
+
+    if (path.startsWith("/promo")) {
+      return handlePromo(req, env);
+    }
+
+    return json({ ok: false, error: "not_found" }, 404);
+  }
 };
 
-function json(data: unknown, init: ResponseInit = {}) {
-  const headers = new Headers(init.headers);
-  headers.set("content-type", "application/json; charset=utf-8");
-  return new Response(JSON.stringify(data), { ...init, headers });
+function json(data: any, status = 200) {
+  return new Response(JSON.stringify(data, null, 2), {
+    status,
+    headers: { "Content-Type": "application/json" }
+  });
 }
+
 
 function parseAllowedOrigins(env: Env): string[] {
   const raw = (env.ALLOWED_ORIGINS || env.ALLOWED_ORIGIN || "").trim();
