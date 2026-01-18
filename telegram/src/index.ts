@@ -92,4 +92,35 @@ export default {
 
     return withCors(req, env, json({ ok: false, error: "not_found" }, { status: 404 }));
   },
+   // telegram/src/index.ts
+import { handlePromo } from "./routes/promo";
+import legacy from "./worker.legacy"; // ใช้ fetch() เดิมทั้งหมด
+
+type Env = any;
+
+function json(data: unknown, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("content-type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify(data), { ...init, headers });
+}
+
+export default {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(req.url);
+
+    // (A) health
+    if (req.method === "GET" && url.pathname === "/ping") {
+      return json({ ok: true, ping: "OK" });
+    }
+
+    // (B) promo endpoint (ใหม่)
+    if (url.pathname === "/promo/validate") {
+      return handlePromo(req, env);
+    }
+
+    // (C) fallback ไปใช้ของเดิมทั้งหมด (/bot/notify, /webhooks/paypal, ฯลฯ)
+    return legacy.fetch(req, env, ctx);
+  },
+};
+
 };
