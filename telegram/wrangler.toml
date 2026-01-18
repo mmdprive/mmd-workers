@@ -1,15 +1,3 @@
-# telegram/wrangler.toml
 name = "telegram"
 main = "src/index.ts"
 compatibility_date = "2025-12-15"
-
-# Optional: default env vars (ค่าจริงไปตั้งใน Cloudflare Dashboard > Settings > Variables and Secrets)
-[vars]
-# ALLOWED_ORIGINS = "https://mmdprive.webflow.io,https://preview.webflow.io,https://mmdprive.com"
-
-# Optional: routes (ไม่จำเป็นสำหรับ workers.dev subdomain)
-# routes = ["telegram.malemodel-bkk.workers.dev/*"]
-
-# Optional: logs / observability (ถ้าคุณใช้)
-# [observability]
-# enabled = true
