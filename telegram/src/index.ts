@@ -1,45 +1,37 @@
 // telegram/src/index.ts
 /* =========================================================
    MMD Privé — Worker Root Router (production-safe)
-   - CORS whitelist via env.ALLOWED_ORIGIN or env.ALLOWED_ORIGINS
-   - Routes:
-       GET  /ping
-       GET/POST /promo/validate
-       POST /bot/notify
-       POST /webhooks/paypal
+
+   Routes:
+     GET     /ping
+     GET/POST /promo/validate
+     (fallback) legacy: /bot/notify, /webhooks/paypal, /v1/payments/notify, etc.
+
+   CORS:
+     env.ALLOWED_ORIGINS (comma-separated) OR env.ALLOWED_ORIGIN (single)
    ========================================================= */
 
 import { handlePromo } from "./routes/promo";
+import legacy from "./worker.legacy";
 
-export default {
-  async fetch(req: Request, env: any) {
-    const url = new URL(req.url);
-    const path = url.pathname;
-
-    if (path === "/ping") {
-      return json({ ok: true, ping: "OK" });
-    }
-
-    if (path.startsWith("/promo")) {
-      return handlePromo(req, env);
-    }
-
-    return json({ ok: false, error: "not_found" }, 404);
-  }
+type Env = {
+  ALLOWED_ORIGIN?: string;
+  ALLOWED_ORIGINS?: string;
 };
 
-function json(data: any, status = 200) {
-  return new Response(JSON.stringify(data, null, 2), {
-    status,
-    headers: { "Content-Type": "application/json" }
-  });
+function json(data: unknown, init: ResponseInit = {}): Response {
+  const headers = new Headers(init.headers);
+  headers.set("content-type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify(data, null, 2), { ...init, headers });
 }
 
-
 function parseAllowedOrigins(env: Env): string[] {
-  const raw = (env.ALLOWED_ORIGINS || env.ALLOWED_ORIGIN || "").trim();
+  const raw = String(env.ALLOWED_ORIGINS || env.ALLOWED_ORIGIN || "").trim();
   if (!raw) return [];
-  return raw.split(",").map(s => s.trim()).filter(Boolean);
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function corsHeaders(req: Request, env: Env): Headers {
@@ -47,8 +39,7 @@ function corsHeaders(req: Request, env: Env): Headers {
   const origin = req.headers.get("origin") || "";
   const allow = parseAllowedOrigins(env);
 
-  // If no whitelist configured: do NOT reflect arbitrary origins.
-  // (Worker is still callable server-to-server without CORS)
+  // ไม่ตั้ง whitelist = ไม่ reflect origin (ยังเรียก server-to-server ได้ตามปกติ)
   if (origin && allow.includes(origin)) {
     h.set("access-control-allow-origin", origin);
     h.set("vary", "Origin");
@@ -67,71 +58,28 @@ function withCors(req: Request, env: Env, res: Response): Response {
   return out;
 }
 
-async function handleNotImplemented(req: Request, env: Env) {
-  return withCors(req, env, json({ ok: false, error: "not_implemented" }, { status: 501 }));
-}
-
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
 
-    // CORS preflight
+    // Preflight
     if (req.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders(req, env) });
     }
 
-    // Basic health
+    // Health
     if (req.method === "GET" && url.pathname === "/ping") {
       return withCors(req, env, json({ ok: true, ping: "OK" }));
     }
 
     // Promo
     if (url.pathname === "/promo/validate") {
-      const res = await handlePromo(req, env);
+      const res = await handlePromo(req, env as any);
       return withCors(req, env, res);
     }
 
-    // Telegram notify (placeholder: wire your real handler later)
-    if (url.pathname === "/bot/notify") {
-      return handleNotImplemented(req, env);
-    }
-
-    // PayPal webhook (placeholder: wire your real handler later)
-    if (url.pathname === "/webhooks/paypal") {
-      return handleNotImplemented(req, env);
-    }
-
-    return withCors(req, env, json({ ok: false, error: "not_found" }, { status: 404 }));
+    // Fallback to legacy routes (bot/paypal/payments/etc.)
+    const legacyRes = await legacy.fetch(req, env as any, ctx);
+    return withCors(req, env, legacyRes);
   },
-   // telegram/src/index.ts
-import { handlePromo } from "./routes/promo";
-import legacy from "./worker.legacy"; // ใช้ fetch() เดิมทั้งหมด
-
-type Env = any;
-
-function json(data: unknown, init: ResponseInit = {}) {
-  const headers = new Headers(init.headers);
-  headers.set("content-type", "application/json; charset=utf-8");
-  return new Response(JSON.stringify(data), { ...init, headers });
-}
-
-export default {
-  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(req.url);
-
-    // (A) health
-    if (req.method === "GET" && url.pathname === "/ping") {
-      return json({ ok: true, ping: "OK" });
-    }
-
-    // (B) promo endpoint (ใหม่)
-    if (url.pathname === "/promo/validate") {
-      return handlePromo(req, env);
-    }
-
-    // (C) fallback ไปใช้ของเดิมทั้งหมด (/bot/notify, /webhooks/paypal, ฯลฯ)
-    return legacy.fetch(req, env, ctx);
-  },
-};
-
 };
