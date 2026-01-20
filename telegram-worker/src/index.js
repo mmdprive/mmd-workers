@@ -1,6 +1,6 @@
-import { json, safeJson, HttpError } from "../../lib/http.js";
-import { requireInternalToken } from "../../lib/guard.js";
-import { telegramNotify } from "../../lib/telegram.js";
+import { json, safeJson, HttpError } from "../lib/http.js";
+import { requireInternalToken } from "../lib/guard.js";
+import { telegramNotify } from "../lib/telegram.js";
 
 export default {
   async fetch(req, env) {

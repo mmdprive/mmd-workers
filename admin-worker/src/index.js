@@ -1,14 +1,14 @@
-import { buildCors, corsHeaders } from "../../lib/cors.js";
-import { json, safeJson, HttpError } from "../../lib/http.js";
-import { str, normalizeTier, normalizeStatus, toISODate } from "../../lib/util.js";
-import { requireConfirmKey } from "../../lib/guard.js";
+import { buildCors, corsHeaders } from "../lib/cors.js";
+import { json, safeJson, HttpError } from "../lib/http.js";
+import { str, normalizeTier, normalizeStatus, toISODate } from "../lib/util.js";
+import { requireConfirmKey } from "../lib/guard.js";
 import {
   dtFindMember,
   dtGetRecordById,
   dtUpdateRecord,
   dtListPackages,
   dtMetrics,
-} from "../../lib/memberstack_dt.js";
+} from "../lib/memberstack_dt.js";
 
 export default {
   async fetch(req, env) {

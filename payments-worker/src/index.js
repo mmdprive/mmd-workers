@@ -1,9 +1,9 @@
-import { buildCors, corsHeaders } from "../../lib/cors.js";
-import { json, safeJson, HttpError } from "../../lib/http.js";
-import { str, num, toMs, toISODate, normalizeTier } from "../../lib/util.js";
-import { requireConfirmKey } from "../../lib/guard.js";
-import { verifyTurnstile } from "../../lib/turnstile.js";
-import { telegramNotify } from "../../lib/telegram.js";
+import { buildCors, corsHeaders } from "../lib/cors.js";
+import { json, safeJson, HttpError } from "../lib/http.js";
+import { str, num, toMs, toISODate, normalizeTier } from "../lib/util.js";
+import { requireConfirmKey } from "../lib/guard.js";
+import { verifyTurnstile } from "../lib/turnstile.js";
+import { telegramNotify } from "../lib/telegram.js";
 import {
   dtFindMember,
   dtCreateRecord,
@@ -11,7 +11,7 @@ import {
   dtFindPackageByCodeOrTier,
   membersTableId,
   memberPackagesTableId,
-} from "../../lib/memberstack_dt.js";
+} from "../lib/memberstack_dt.js";
 
 export default {
   async fetch(req, env) {
