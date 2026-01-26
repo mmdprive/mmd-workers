@@ -1,3 +1,36 @@
 name = "payments-worker"
 main = "src/index.js"
 compatibility_date = "2026-01-20"
+
+# ==============================
+# ENV — Payments Worker ONLY
+# ==============================
+[vars]
+
+# CORS
+ALLOWED_ORIGINS = "https://mmdprive.webflow.io,https://mmdprive.com,https://cot-satin-91787057.figma.site"
+
+# Base URL สำหรับลิงก์ confirm
+WEB_BASE_URL = "https://mmdprive.webflow.io"
+
+# อายุ token/session (แนะนำ 7–30 วัน)
+PAY_SESSIONS_TTL_DAYS = "30"
+
+# กติกาแต้ม
+POINTS_RATE = "1000"
+
+# Airtable (Payments + Points Ledger)
+AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+AIRTABLE_TABLE_PAYMENTS = "payments"
+AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
+
+# Telegram (notify confirm)
+TELEGRAM_CHAT_ID = "-1003546439681"
+TG_THREAD_CONFIRM = "61"
+
+# ==============================
+# KV — Payment Sessions
+# ==============================
+[[kv_namespaces]]
+binding = "PAY_SESSIONS_KV"
+id = "a9b6e92309024aa8a7ed1869d2c80afd"
