@@ -57,6 +57,13 @@ export default {
     const url = new URL(req.url);
     const path = url.pathname;
     const method = req.method.toUpperCase();
+// example: call payments-worker to mint token
+const r = await fetch(`${env.
+payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ /* payload */ }),
+});
 
     // ---- CORS / Preflight ----
     if (method === "OPTIONS") return corsPreflight(req, env);
