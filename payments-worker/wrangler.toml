@@ -1,36 +1,37 @@
-name = "payments-worker"
+name = "admin-worker"
 main = "src/index.js"
-compatibility_date = "2026-01-20"
+compatibility_date = "2026-01-27"
 
-# ==============================
-# ENV — Payments Worker ONLY
-# ==============================
+# Publish:
+# https://admin-worker.malemodel-bkk.workers.dev
+
 [vars]
+ALLOWED_ORIGINS = "https://mmdprive.com,https://mmdprive.webflow.io"
 
-# CORS
-ALLOWED_ORIGINS = "https://mmdprive.webflow.io,https://mmdprive.com,https://cot-satin-91787057.figma.site"
-
-# Base URL สำหรับลิงก์ confirm
-WEB_BASE_URL = "https://mmdprive.webflow.io"
-
-# อายุ token/session (แนะนำ 7–30 วัน)
-PAY_SESSIONS_TTL_DAYS = "30"
-
-# กติกาแต้ม
-POINTS_RATE = "1000"
-
-# Airtable (Payments + Points Ledger)
 AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+
+# Tables (ใส่ได้ทั้ง Table ID หรือ Table Name)
+AIRTABLE_TABLE_MEMBERS = "tbl_cmjals5ud001e0svfhuamh6kn"
+AIRTABLE_TABLE_SESSIONS = "sessions"
+AIRTABLE_TABLE_PACKAGES = "packages"
+AIRTABLE_TABLE_MEMBER_PACKAGES = "member_packages"
 AIRTABLE_TABLE_PAYMENTS = "payments"
 AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
 
-# Telegram (notify confirm)
+# Airtable Writer tables (ตามที่ล็อกไว้)
+AIRTABLE_TABLE_CONSOLE_INBOX_ID = "tblFHmfpB2TTrzO2e"
+AIRTABLE_TABLE_PAYMENT_PROOFS_ID = "tblfJfM4Sqag9zrLi"
+
+# optional
+AIRTABLE_TABLE_MODELS = "Models"
+
+# telegram-worker internal send (optional)
+TELEGRAM_INTERNAL_SEND_URL = "https://telegram-worker.malemodel-bkk.workers.dev/telegram/internal/send"
+
+# payments-worker base (ถ้า admin-worker มี endpoint ที่ต้องยิงไป payments-worker)
+PAYMENTS_WORKER_BASE = "https://payments-worker.malemodel-bkk.workers.dev"
+
+# (optional) ถ้าอยากให้ admin-worker รู้ thread id ด้วย (ตอนนี้ใส่ไว้ได้ ไม่พัง)
 TELEGRAM_CHAT_ID = "-1003546439681"
 TG_THREAD_CONFIRM = "61"
-
-# ==============================
-# KV — Payment Sessions
-# ==============================
-[[kv_namespaces]]
-binding = "PAY_SESSIONS_KV"
-id = "a9b6e92309024aa8a7ed1869d2c80afd"
+TG_THREAD_POINTS = "17"
