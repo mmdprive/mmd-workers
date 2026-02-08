@@ -8,7 +8,7 @@ workers_dev = true
 
 # ใช้สำหรับ CORS (browser calls)
 [vars]
-ALLOWED_ORIGINS = "https://mmdprive.com,https://mmdprive.webflow.io"
+ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
 
 # Base URLs (LOCK)
 PAYMENTS_BASE_URL = "https://payments-worker.malemodel-bkk.workers.dev"
