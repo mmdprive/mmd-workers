@@ -1,5 +1,5 @@
+main = "index.js"
 name = "events-worker"
-main = "src/index.js"
 compatibility_date = "2026-01-20"
 
 [vars]
