@@ -1,3 +1,28 @@
 name = "payments-worker"
 main = "src/index.js"
 compatibility_date = "2026-01-20"
+
+kv_namespaces = [
+  { binding = "PAY_SESSIONS_KV", id = "a9b6e92309024aa8a7ed1869d2c80afd" }
+]
+
+[vars]
+ALLOWED_ORIGINS = "https://mmdprive.webflow.io,https://mmdprive.com,https://cot-satin-91787057.figma.site"
+
+WEB_BASE_URL = "https://mmdprive.webflow.io"
+CONFIRM_BASE_URL = "https://mmdprive.webflow.io"
+
+PAY_SESSIONS_TTL_DAYS = "30"
+PAY_TOKEN_TTL_SECONDS = "2592000"
+
+POINTS_RATE = "1000"
+
+AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+AIRTABLE_TABLE_PAYMENTS = "payments"
+AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
+AIRTABLE_TABLE_SESSIONS = "sessions"
+AIRTABLE_TABLE_ACTIVITY_LOGS = "Activity Logs"
+
+TELEGRAM_CHAT_ID = "-1003546439681"
+TG_THREAD_CONFIRM = "61"
+TG_THREAD_POINTS = "17"
