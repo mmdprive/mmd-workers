@@ -1,3 +1,16 @@
 name = "events-worker"
 main = "src/index.js"
 compatibility_date = "2026-01-20"
+
+[vars]
+ALLOWED_ORIGINS = "https://mmdbkk.com,https://mmdprive.com"
+AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+AIRTABLE_TABLE_JOBS = "jobs"
+EVENTS_IDEMPOTENCY_TTL_DAYS = "7"
+
+# Optional (enable dispatch notify)
+TELEGRAM_WORKER_BASE_URL = "https://telegram-worker.malemodel-bkk.workers.dev"
+
+[[kv_namespaces]]
+binding = "EVENTS_IDEMPOTENCY_KV"
+id = "PUT_YOUR_KV_ID_HERE"
