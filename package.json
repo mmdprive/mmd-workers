@@ -1,0 +1,15 @@
+{
+  "name": "mmd-workers",
+  "private": true,
+  "scripts": {
+    "deploy:payments": "wrangler deploy --config workers/payments-worker/wrangler.toml",
+    "deploy:admin": "wrangler deploy --config workers/admin-worker/wrangler.toml",
+    "deploy:events": "wrangler deploy --config workers/events-worker/wrangler.toml",
+    "deploy:telegram": "wrangler deploy --config workers/telegram-worker/wrangler.toml",
+
+    "dev:payments": "wrangler dev --config workers/payments-worker/wrangler.toml",
+    "dev:admin": "wrangler dev --config workers/admin-worker/wrangler.toml",
+    "dev:events": "wrangler dev --config workers/events-worker/wrangler.toml",
+    "dev:telegram": "wrangler dev --config workers/telegram-worker/wrangler.toml"
+  }
+}
