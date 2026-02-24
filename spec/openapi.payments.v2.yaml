@@ -1,0 +1,449 @@
+openapi: 3.0.3
+info:
+  title: MMD Payments Webhook API (v2)
+  version: "2.0.1"
+  description: >
+    Canonical MMD webhook flow for PromptPay manual slip.
+    Primary gateway: PromptPay manual slip.
+    Idempotency:
+      - Payment intent: (session_id + payment_stage)
+      - Payment event: transaction_ref (unique)
+      - Membership ledger: payment_ref (unique; typically equals transaction_ref)
+servers:
+  - url: https://{env}.mmd.example
+    variables:
+      env:
+        default: api
+        description: Environment subdomain (api/staging/dev)
+
+tags:
+  - name: payments
+    description: Payment intent, verification, and notifications
+  - name: admin
+    description: Internal admin-only endpoints
+
+components:
+  securitySchemes:
+    InternalBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Internal token for admin-worker endpoints (ADMIN_BEARER / internal token)
+
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "package_inactive"
+        message:
+          type: string
+          example: "Package code not found or inactive."
+        request_id:
+          type: string
+          example: "req_01HXYZ..."
+      required: [ok, error, message]
+
+    Currency:
+      type: string
+      enum: [THB]
+
+    PaymentStage:
+      type: string
+      description: Payment stage within a session. Intent idempotency scope is (session_id + payment_stage).
+      enum: [membership, deposit, final, tips]
+      example: membership
+
+    PaymentMethod:
+      type: string
+      enum: [promptpay, bank_transfer, paypal_card]
+
+    PaymentProvider:
+      type: string
+      enum: [promptpay, ktb, paypal]
+
+    PaymentStatus:
+      type: string
+      enum: [pending, paid, failed, refunded]
+
+    LedgerStatus:
+      type: string
+      enum: [active, expired, cancelled, refunded]
+
+    LedgerType:
+      type: string
+      enum: [purchase, renewal, manual, comped, refund]
+
+    LedgerSource:
+      type: string
+      enum: [web, line, admin, system]
+
+    PayVerifyRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          type: string
+          description: Session/payment-intent anchor. Must be provided for all stages.
+          example: "sess_123"
+        payment_stage:
+          $ref: "#/components/schemas/PaymentStage"
+        member_email:
+          type: string
+          format: email
+          example: "user@email.com"
+        memberstack_id:
+          type: string
+          description: Optional Memberstack ID if known at intent time.
+          example: "ms_abc123"
+        package_code:
+          type: string
+          example: "premium_30"
+        amount:
+          type: number
+          example: 1000
+        currency:
+          $ref: "#/components/schemas/Currency"
+        method:
+          $ref: "#/components/schemas/PaymentMethod"
+        provider:
+          $ref: "#/components/schemas/PaymentProvider"
+        raw_ref:
+          type: string
+          description: Optional slip URL/text reference captured at intent time.
+          example: "https://.../slip.jpg"
+      required:
+        [session_id, payment_stage, member_email, package_code, amount, currency, method, provider]
+
+    PayVerifyResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          example: true
+        session_id:
+          type: string
+          example: "sess_123"
+        payment_stage:
+          $ref: "#/components/schemas/PaymentStage"
+        intent_key:
+          type: string
+          description: Server-computed idempotency key for the intent.
+          example: "intent:sess_123:membership"
+        transaction_ref:
+          type: string
+          description: Unique payment event reference created/returned for this intent (idempotent replay-safe).
+          example: "pay_01HXYZ..."
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+      required: [ok, session_id, payment_stage, intent_key, transaction_ref, status]
+
+    PaymentsNotifyRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        session_id:
+          type: string
+          description: Optional but recommended for traceability.
+          example: "sess_123"
+        payment_stage:
+          $ref: "#/components/schemas/PaymentStage"
+        transaction_ref:
+          type: string
+          description: Payment idempotency key; must match a payments record.
+          example: "pay_01HXYZ..."
+        paid_at:
+          type: string
+          format: date-time
+          example: "2026-02-24T10:15:00+07:00"
+        provider_txn_id:
+          type: string
+          description: Gateway/bank/slip reference ID if available.
+          example: "PP-SLIP-XYZ-123"
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        admin_reason:
+          type: string
+          description: Reason for manual confirmation (recommended for audit).
+          example: "Slip verified"
+      required: [transaction_ref, status]
+
+    PaymentsNotifyResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          example: true
+        transaction_ref:
+          type: string
+          example: "pay_01HXYZ..."
+        payment_status:
+          $ref: "#/components/schemas/PaymentStatus"
+        ledger_written:
+          type: boolean
+          description: >
+            True if member_packages membership ledger was created in this call.
+            For non-membership stages (deposit/final/tips), this should be false by default.
+          example: true
+      required: [ok, transaction_ref, payment_status, ledger_written]
+
+    MembershipApplyRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        member_email:
+          type: string
+          format: email
+          example: "user@email.com"
+        memberstack_id:
+          type: string
+          description: Optional if resolvable by email.
+          example: "ms_abc123"
+        package_code:
+          type: string
+          example: "premium_30"
+        payment_ref:
+          type: string
+          description: Ledger idempotency key (typically equals transaction_ref).
+          example: "pay_01HXYZ..."
+        paid_at:
+          type: string
+          format: date-time
+          example: "2026-02-24T10:15:00+07:00"
+      required: [member_email, package_code, payment_ref, paid_at]
+
+    MembershipApplyResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          example: true
+        memberstack_updated:
+          type: boolean
+          example: true
+        payment_ref:
+          type: string
+          example: "pay_01HXYZ..."
+      required: [ok, memberstack_updated, payment_ref]
+
+    AdminPaymentsOverrideRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        transaction_ref:
+          type: string
+          example: "pay_01HXYZ..."
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-24T10:15:00+07:00"
+        provider_txn_id:
+          type: string
+          nullable: true
+          example: "PP-SLIP-XYZ-123"
+        admin_reason:
+          type: string
+          example: "Manual override approved by Per"
+      required: [transaction_ref, status, admin_reason]
+
+    AdminPaymentsOverrideResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          example: true
+        transaction_ref:
+          type: string
+          example: "pay_01HXYZ..."
+        payment_status:
+          $ref: "#/components/schemas/PaymentStatus"
+        ledger_written:
+          type: boolean
+          description: True if a membership ledger entry was created/updated as part of override.
+          example: true
+        audit_logged:
+          type: boolean
+          example: true
+      required: [ok, transaction_ref, payment_status, ledger_written, audit_logged]
+
+paths:
+  /v1/pay/verify:
+    post:
+      tags: [payments]
+      summary: Create or return a payment intent (idempotent by session_id + payment_stage)
+      description: >
+        Creates a payments record with status=pending for PromptPay manual slip flow.
+        MUST be idempotent by (session_id + payment_stage) and return the same transaction_ref on replay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayVerifyRequest"
+      responses:
+        "200":
+          description: Intent created or returned (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayVerifyResponse"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Package not found or inactive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict (e.g., amount/package mismatch for same session_id+stage)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/payments/notify:
+    post:
+      tags: [payments]
+      summary: Confirm payment and (for membership stage) write membership ledger (idempotent)
+      description: >
+        Updates payments status (typically pending->paid) and writes a member_packages membership ledger entry
+        when payment_stage=membership. Idempotent: if payment already paid or ledger exists, returns ok.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentsNotifyRequest"
+      responses:
+        "200":
+          description: Payment status processed (idempotent safe)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentsNotifyResponse"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: transaction_ref not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: State conflict (e.g., ledger exists but payment not paid)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/admin/membership/apply:
+    post:
+      tags: [admin]
+      summary: Apply membership to Memberstack (internal only, idempotent by payment_ref)
+      security:
+        - InternalBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MembershipApplyRequest"
+      responses:
+        "200":
+          description: Membership applied (idempotent safe)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MembershipApplyResponse"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict (e.g., payment_ref already used with different member/package)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/admin/payments/override:
+    post:
+      tags: [admin]
+      summary: Manual admin override payment status (internal only; strict audit + telegram notify)
+      description: >
+        Controlled override for exceptional cases. Requires admin_reason.
+        Must remain idempotent by transaction_ref and must not create duplicate membership ledger entries.
+      security:
+        - InternalBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPaymentsOverrideRequest"
+      responses:
+        "200":
+          description: Override applied (idempotent safe)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPaymentsOverrideResponse"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: State conflict not allowed by override policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
