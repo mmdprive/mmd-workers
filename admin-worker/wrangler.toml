@@ -1,3 +1,32 @@
+# admin-worker/wrangler.toml
+# LOCK v2026-LOCK-01
+
 name = "admin-worker"
 main = "src/index.js"
-compatibility_date = "2026-01-20"
+compatibility_date = "2026-01-01"
+workers_dev = true
+
+# ใช้สำหรับ CORS (browser calls)
+[vars]
+ALLOWED_ORIGINS = "https://mmdprive.com,https://mmdprive.webflow.io"
+
+# Base URLs (LOCK)
+PAYMENTS_BASE_URL = "https://payments-worker.malemodel-bkk.workers.dev"
+TELEGRAM_INTERNAL_SEND_URL = "https://telegram-worker.malemodel-bkk.workers.dev/telegram/internal/send"
+
+# Airtable
+AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+
+# Writer table IDs (LOCK)
+AIRTABLE_TABLE_CONSOLE_INBOX_ID = "tblFHmfpB2TTrzO2e"
+AIRTABLE_TABLE_PAYMENT_PROOFS_ID = "tblfJfM4Sqag9zrLi"
+
+# Optional table names (ถ้าคุณใช้ name-based endpoints)
+AIRTABLE_TABLE_MEMBERS = "members"
+AIRTABLE_TABLE_MODELS = "models"
+
+# ---- Secrets (set via wrangler secret) ----
+# ADMIN_BEARER
+# CONFIRM_KEY
+# AIRTABLE_API_KEY
+# INTERNAL_TOKEN
