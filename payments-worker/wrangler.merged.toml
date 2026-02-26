@@ -1,0 +1,66 @@
+name = "payments-worker"
+main = "src/index.js"
+compatibility_date = "2026-01-20"
+
+kv_namespaces = [
+  { binding = "PAY_SESSIONS_KV", id = "a9b6e92309024aa8a7ed1869d2c80afd" }
+]
+
+[vars]
+ALLOWED_ORIGINS = "\"https://mmdprive.com,https://mmdprive.webflow.io,https://mmdbkk.com\""
+
+WEB_BASE_URL = "https://mmdprive.webflow.io"
+CONFIRM_BASE_URL = "https://mmdprive.webflow.io"
+
+PAY_SESSIONS_TTL_DAYS = "30"
+PAY_TOKEN_TTL_SECONDS = "2592000"
+
+# LOCK: 100 THB = 1 point
+POINTS_RATE = "100"
+
+AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+
+# --- LOCK TABLE IDs ---
+AIRTABLE_TABLE_MEMBERSHIP_APPLICATIONS = "tbl8z2MQpIqcdylim"
+AIRTABLE_TABLE_MEMBERS                 = "tblgWc5VRon5o8Mhk"
+AIRTABLE_TABLE_BOOKINGS                = "tbl8no0NkZ3LDgCXK"
+AIRTABLE_TABLE_PAYMENTS                = "tblWGGJJOx5eBvBZJ"
+AIRTABLE_TABLE_MEMBER_PACKAGES          = "member_packages"
+AIRTABLE_TABLE_SESSIONS                = "tblC98mKWbzmPuNzX"
+AIRTABLE_TABLE_POINTS_LEDGER           = "points_ledger"
+AIRTABLE_TABLE_PACKAGES                = "packages"
+AIRTABLE_TABLE_CLIENTS                 = "tblVv58TCbwh5j1fS"
+AIRTABLE_TABLE_MODELS                  = "tblcatsmzAT5nKqIn"
+AIRTABLE_TABLE_JOBS                    = "tbl0jxIjN8QYwGABX"
+AIRTABLE_TABLE_INTERNAL_NOTES          = "tbl1Tt1IXDc9k0zxK"
+AIRTABLE_TABLE_ACTIVITY_LOGS           = "tblbUWRoFL6OI6QMJ"
+
+# --- LOCK FIELD IDs: Sessions (minimum) ---
+AT_SESSIONS__SESSION_ID        = "fldLTq2kZbyRv22IA"
+AT_SESSIONS__STATUS            = "fldHAlxnRfpKucnNV"
+AT_SESSIONS__PACKAGE_CODE      = "fldp6xNSvxDh5pjR9"
+AT_SESSIONS__AMOUNT_THB        = "fldhwC79ndbnEXSZz"
+AT_SESSIONS__MEMBERSHIP_ACTION = "fldpjo4cD3X8tImvB"
+AT_SESSIONS__CUSTOMER_ACK_AT   = "fldJSS5GNN7quJwa8"
+AT_SESSIONS__MODEL_ACK_AT      = "fldFgkHXivIAThfDz"
+AT_SESSIONS__PAYMENT_STATUS    = "fldTY5lE6m0kQf72n"
+AT_SESSIONS__PAYMENT_REF       = "fldojgjSQLaO0uQLX"
+AT_SESSIONS__MEMBERSTACK_ID    = "fldjelgJTzCHSCWZ0"
+
+# --- LOCK FIELD IDs: Payments (minimum) ---
+AT_PAYMENTS__PAYMENT_REF           = "fldOO6SY49iDw8VBZ"
+AT_PAYMENTS__PAYMENT_DATE          = "fld3yAwxIu2dkw7fO"
+AT_PAYMENTS__AMOUNT                = "fldvCSwrUW8OMAooS"
+AT_PAYMENTS__PAYMENT_STATUS        = "fldEJ1hmm7KwWuI6q"
+AT_PAYMENTS__PAYMENT_METHOD        = "fldsblzIn0wzan3c9"
+AT_PAYMENTS__RECEIPT_PHOTO         = "fldjhGzMEoxnwIADW"
+AT_PAYMENTS__NOTES                 = "fldjsZIKoJPawlb2u"
+AT_PAYMENTS__VERIFICATION_STATUS   = "fldJ7a0Ube9F0bmRy"
+AT_PAYMENTS__PAYMENT_INTENT_STATUS = "fld04fr3bRJTohO6y"
+AT_PAYMENTS__PACKAGE_CODE          = "fldfyHYVrzbGPvMJR"
+AT_PAYMENTS__CREATED_AT            = "flduxcPpowBxEZSLu"
+
+TELEGRAM_CHAT_ID = "-1003546439681"
+TG_THREAD_CONFIRM = "61"
+TG_THREAD_POINTS = "17"
+
