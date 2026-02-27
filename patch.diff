@@ -1,0 +1,212 @@
+*** Begin Patch
+*** Add File: events-worker/wrangler.toml
++name = "events-worker"
++main = "src/index.js"
++compatibility_date = "2026-02-27"
++type = "javascript"
++account_id = "REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
++
++[triggers]
++crons = ["*/15 * * * *"] # run every 15 minutes
++
++kv_namespaces = [
++  { binding = "EVENTS_QUEUE_KV", id = "REPLACE_EVENTS_QUEUE_KV_ID" }
++]
++
++[vars]
++TELEGRAM_WORKER_BASE = "https://telegram-worker.malemodel-bkk.workers.dev"
++PAYMENTS_WORKER_BASE = "https://payments-worker.malemodel-bkk.workers.dev"
++ADMIN_WORKER_BASE = "https://admin-worker.malemodel-bkk.workers.dev"
++
++# Ensure you set AIRTABLE_API_KEY, AIRTABLE_BASE_ID, AIRTABLE_TABLE_SESSIONS, AIRTABLE_TABLE_MODELS,
++# AIRTABLE_TABLE_CLIENTS, AIRTABLE_TABLE_ACTIVITY_LOGS and other field mapping envs in Cloudflare dashboard or wrangler.
++
+*** End Patch
+*** Begin Patch
+*** Add File: events-worker/src/index.js
++// events-worker/src/index.js
++const AIRTABLE_API = "https://api.airtable.com/v0";
++
++function nowIso(){ return new Date().toISOString(); }
++function dateOnlyIso(d=new Date()){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
++function formatDate(iso){ try { return new Date(iso).toLocaleDateString('th-TH'); } catch { return iso; } }
++function formatTime(iso){ try { return new Date(iso).toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' }); } catch { return ''; } }
++
++async function airtableFetch(env, { method='GET', tableId, recordId, qs, body }) {
++  if (!env.AIRTABLE_API_KEY) throw new Error('Missing AIRTABLE_API_KEY');
++  if (!env.AIRTABLE_BASE_ID) throw new Error('Missing AIRTABLE_BASE_ID');
++  if (!tableId) throw new Error('Missing tableId');
++  let url = `${AIRTABLE_API}/${env.AIRTABLE_BASE_ID}/${tableId}`;
++  if (recordId) url += `/${recordId}`;
++  if (qs) url += `?${qs}`;
++  const res = await fetch(url, {
++    method,
++    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}`, 'Content-Type':'application/json' },
++    body: body ? JSON.stringify(body) : undefined
++  });
++  const txt = await res.text(); const j = txt ? JSON.parse(txt) : null;
++  if (!res.ok) throw new Error(`Airtable ${res.status} ${JSON.stringify(j)}`);
++  return j;
++}
++
++async function postSendToTelegram(env, chatId, text, reply_markup=null) {
++  const url = `${env.TELEGRAM_WORKER_BASE || env.PAYMENTS_WORKER_BASE}/v1/send`;
++  const payload = { chat_id: String(chatId), text };
++  if (reply_markup) payload.reply_markup = reply_markup;
++  const res = await fetch(url, {
++    method: 'POST',
++    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${env.INTERNAL_TOKEN}` },
++    body: JSON.stringify(payload)
++  });
++  try { return await res.json(); } catch { return null; }
++}
++
++async function markSessionReminderSent(env, sessionRecordId) {
++  try {
++    await airtableFetch(env, { method:'PATCH', tableId: env.AIRTABLE_TABLE_SESSIONS, recordId: sessionRecordId, body: { fields: { reminder_24h_sent: true, reminder_24h_sent_at: new Date().toISOString() }, typecast:true }});
++  } catch(e){ /* best-effort */ }
++}
++
++async function scheduleCheckAckIn12Hours(env, sessionId) {
++  if (!env.EVENTS_QUEUE_KV) return;
++  const key = `checkack:${sessionId}`;
++  const due = Date.now() + 12 * 3600 * 1000;
++  await env.EVENTS_QUEUE_KV.put(key, String(due), { expirationTtl: 60 * 60 * 24 * 3 });
++}
++
++async function loadAirtableRecordByIdOrRef(env, tableId, ref) {
++  if (!ref) return null;
++  if (Array.isArray(ref) && ref.length) {
++    try { const r = await airtableFetch(env, { method:'GET', tableId, recordId: ref[0] }); return r; } catch {}
++  }
++  try { const r = await airtableFetch(env, { method:'GET', tableId, recordId: ref }); return r; } catch {}
++  try {
++    const qs = new URLSearchParams({ maxRecords:'1', filterByFormula: `{model_id}="${ref}"` }).toString();
++    const out = await airtableFetch(env, { method:'GET', tableId, qs });
++    return out?.records?.[0] || null;
++  } catch { return null; }
++}
++
++async function processOneSession(env, sessionRec) {
++  const session = sessionRec.fields || {};
++  const sessionId = session[env.AT_SESSIONS__SESSION_ID] || session.session_id || session.SessionID || '';
++  const startAt = session.start_at || session.start_time || session.Start || '';
++  const startDate = formatDate(startAt), startTime = formatTime(startAt), sessionName = session.name || session.session_name || 'Session';
++
++  const modelRef = session[env.AT_SESSIONS__MODEL_ASSIGNED] || session.assigned_model;
++  const modelRec = await loadAirtableRecordByIdOrRef(env, env.AIRTABLE_TABLE_MODELS, modelRef);
++  const modelChat = modelRec?.fields?.[env.AT_MODELS__TELEGRAM_CHAT_ID] || modelRec?.fields?.telegram_chat_id;
++  const modelConsent = !!(modelRec?.fields?.[env.AT_MODELS__TELEGRAM_CONSENT] || modelRec?.fields?.telegram_consent);
++
++  const clientRef = session.customer || session.client || session.customer_id;
++  const clientRec = await loadAirtableRecordByIdOrRef(env, env.AIRTABLE_TABLE_CLIENTS, clientRef);
++  const memberChat = clientRec?.fields?.[env.AT_CLIENTS__TELEGRAM_CHAT_ID] || clientRec?.fields?.telegram_chat_id;
++
++  if (modelChat && modelConsent) {
++    const modelText = `ยืนยันนัด: ${sessionName}\nวันที่ ${startDate} เวลา ${startTime}\nสถานที่: ${session.meeting_point || session.location || '-'}\nยอด: ฿${session.amount_thb || session.amount || 0}\nกรุณากดปุ่มเพื่อยืนยันการมาถึง`;
++    const modelPayload = { inline_keyboard: [[{ text: "ยืนยันการมาถึง", callback_data: `model_ack|${sessionId}` }]] };
++    await postSendToTelegram(env, String(modelChat), modelText, { inline_keyboard: modelPayload.inline_keyboard }).catch(()=>null);
++  } else {
++    try { await airtableFetch(env, { method:'POST', tableId: env.AIRTABLE_TABLE_ACTIVITY_LOGS, body: { fields: { "Action Performed":"reminder_model_failed", "Performed By":"system", "Details": JSON.stringify({ sessionId, reason:'no_telegram_or_consent' }) }, typecast:true } }); } catch {}
++  }
++
++  if (memberChat) {
++    const memberText = `แจ้งเตือนล่วงหน้า: พรุ่งนี้ ${startDate} เวลา ${startTime} • ${sessionName}\nเราได้แจ้งน้องแล้ว หากคุณต้องการยืนยัน กรุณากดปุ่มด้านล่าง:`;
++    const memberPayload = { inline_keyboard: [ [{ text: "ยืนยันพร้อมรับบริการ", callback_data: `member_confirm_model_notified|${sessionId}` }], [{ text: "ดูสถานะการยืนยันของน้อง", callback_data: `member_view_model_status|${sessionId}` }] ] };
++    await postSendToTelegram(env, String(memberChat), memberText, { inline_keyboard: memberPayload.inline_keyboard }).catch(()=>null);
++  } else {
++    try { await airtableFetch(env, { method:'POST', tableId: env.AIRTABLE_TABLE_ACTIVITY_LOGS, body: { fields: { "Action Performed":"reminder_member_failed", "Performed By":"system", "Details": JSON.stringify({ sessionId, reason:'no_member_telegram' }) }, typecast:true } }); } catch {}
++  }
++
++  await markSessionReminderSent(env, sessionRec.id);
++  await scheduleCheckAckIn12Hours(env, sessionId);
++}
++
++export async function run24hReminders(env) {
++  const now = new Date();
++  const startMin = new Date(now.getTime() + 23.5 * 3600 * 1000).toISOString();
++  const startMax = new Date(now.getTime() + 24.5 * 3600 * 1000).toISOString();
++  try {
++    const formula = `AND(IS_AFTER({start_at}, "${startMin}"), IS_BEFORE({start_at}, "${startMax}"), NOT({reminder_24h_sent}))`;
++    const qs = new URLSearchParams({ maxRecords:'100', filterByFormula: formula }).toString();
++    const out = await airtableFetch(env, { method:'GET', tableId: env.AIRTABLE_TABLE_SESSIONS, qs });
++    for (const rec of out.records || []) { try { await processOneSession(env, rec); } catch(e){} }
++  } catch(e){}
++}
++
++async function checkAckAndEscalate(env, sessionId) {
++  let sessionRecId = null;
++  try {
++    const tbl = env.AIRTABLE_TABLE_SESSIONS;
++    const qs = new URLSearchParams({ maxRecords:'1', filterByFormula: `{session_id}="${sessionId}"` }).toString();
++    const out = await airtableFetch(env, { method:'GET', tableId: tbl, qs });
++    sessionRecId = out?.records?.[0]?.id || null;
++  } catch(e){}
++  if (!sessionRecId) { try { await airtableFetch(env, { method:'POST', tableId: env.AIRTABLE_TABLE_ACTIVITY_LOGS, body: { fields:{ "Action Performed":"escalation_no_session", "Performed By":"system", "Details": JSON.stringify({ sessionId }) }, typecast:true } }); } catch {} return; }
++  let sessionFields = {};
++  try { const s = await airtableFetch(env, { method:'GET', tableId: env.AIRTABLE_TABLE_SESSIONS, recordId: sessionRecId }); sessionFields = s.fields || {}; } catch {}
++  const modelAck = !!(sessionFields[env.AT_SESSIONS__MODEL_ACK_AT] || sessionFields.model_ack_at);
++  if (modelAck) return;
++  const adminChat = env.TELEGRAM_ADMIN_CHAT_ID || '-1003546439681';
++  const modelName = sessionFields.assigned_model || sessionFields.model || 'unknown';
++  const msgAdmin = `⚠️ Model NOT ACK for session ${sessionId}\nSession: ${sessionFields.name || sessionFields.session_name}\nStart: ${sessionFields.start_at}\nModel: ${modelName}\nPlease check.`;
++  await postSendToTelegram(env, adminChat, msgAdmin);
++  try {
++    const modelRef = sessionFields[env.AT_SESSIONS__MODEL_ASSIGNED] || sessionFields.assigned_model;
++    const modelRec = await loadAirtableRecordByIdOrRef(env, env.AIRTABLE_TABLE_MODELS, modelRef);
++    const modelChat = modelRec?.fields?.[env.AT_MODELS__TELEGRAM_CHAT_ID] || modelRec?.fields?.telegram_chat_id;
++    if (modelChat) {
++      const modelMsg = `แจ้งเตือนอีกครั้ง: กรุณายืนยันการมาถึงสำหรับนัดพรุ่งนี้ (${sessionId}). หากไม่สะดวก โปรดแจ้งทีมภายใน 12 ชม.`;
++      await postSendToTelegram(env, modelChat, modelMsg);
++    }
++  } catch(e){}
++  await airtableFetch(env, { method:'POST', tableId: env.AIRTABLE_TABLE_ACTIVITY_LOGS, body: { fields: { "Action Performed":"escalation_model_no_ack", "Performed By":"system", "Details": JSON.stringify({ sessionId }) }, typecast:true } }).catch(()=>null);
++}
++
++export async function runCheckAck(env) {
++  if (!env.EVENTS_QUEUE_KV) return;
++  try {
++    const list = await env.EVENTS_QUEUE_KV.list({ prefix: 'checkack:' });
++    const now = Date.now();
++    for (const k of list.keys || []) {
++      try {
++        const val = await env.EVENTS_QUEUE_KV.get(k.name);
++        if (!val) { await env.EVENTS_QUEUE_KV.delete(k.name); continue; }
++        const due = Number(val);
++        if (Number.isFinite(due) && due <= now) {
++          const sessionId = k.name.replace('checkack:','');
++          await checkAckAndEscalate(env, sessionId);
++          await env.EVENTS_QUEUE_KV.delete(k.name);
++        }
++      } catch(e){}
++    }
++  } catch(e){}
++}
++
++export default {
++  async scheduled(evt, env, ctx) {
++    await run24hReminders(env);
++    await runCheckAck(env);
++  },
++
++  async fetch(req, env) {
++    const url = new URL(req.url);
++    const path = url.pathname.replace(/\/+$/,'');
++    const method = req.method.toUpperCase();
++    if (method === 'POST' && path === '/tasks/run-24h') {
++      const auth = req.headers.get('Authorization') || '';
++      if (!env.INTERNAL_TOKEN || auth !== `Bearer ${env.INTERNAL_TOKEN}`) return new Response(JSON.stringify({ ok:false, error:'unauthorized' }), { status:401, headers:{'Content-Type':'application/json'}});
++      await run24hReminders(env);
++      return new Response(JSON.stringify({ ok:true }), { headers:{'Content-Type':'application/json'}});
++    }
++    if (method === 'POST' && path === '/tasks/run-check') {
++      const auth = req.headers.get('Authorization') || '';
++      if (!env.INTERNAL_TOKEN || auth !== `Bearer ${env.INTERNAL_TOKEN}`) return new Response(JSON.stringify({ ok:false, error:'unauthorized' }), { status:401, headers:{'Content-Type':'application/json'}});
++      await runCheckAck(env);
++      return new Response(JSON.stringify({ ok:true }), { headers:{'Content-Type':'application/json'}});
++    }
++    return new Response(JSON.stringify({ ok:false, error:'not_found' }), { status:404, headers:{'Content-Type':'application/json'}});
++  }
++};
++
+*** End Patch
