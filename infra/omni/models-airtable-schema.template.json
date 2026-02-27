@@ -1,0 +1,85 @@
+{
+  "action": "create_airtable_base",
+  "meta": {
+    "base_name": "MMD Models",
+    "description": "Airtable base for MMD Privé models (Models table + Form)",
+    "workspace": "MMD Privé (default)"
+  },
+  "airtable_auth": {
+    "admin_api_token": "REPLACE_WITH_AIRTABLE_ADMIN_TOKEN"
+  },
+  "payload": {
+    "tables": [
+      {
+        "name": "Models",
+        "primaryField": { "name": "working_name", "type": "singleLineText" },
+        "fields": [
+          { "name": "model_id", "type": "autoNumber", "description": "Auto-number" },
+          { "name": "profile_photo", "type": "attachment" },
+          { "name": "nickname", "type": "singleLineText" },
+          { "name": "working_name", "type": "singleLineText" },
+          { "name": "gender", "type": "singleSelect", "options": ["ชาย","หญิง","อื่น ๆ"] },
+          { "name": "age", "type": "number" },
+          { "name": "height_cm", "type": "number", "description": "ส่วนสูง (cm)" },
+          { "name": "weight_kg", "type": "number", "description": "น้ำหนัก (kg)" },
+          { "name": "occupation", "type": "singleLineText" },
+          { "name": "phone", "type": "phoneNumber" },
+          { "name": "line_id", "type": "singleLineText" },
+          { "name": "instagram", "type": "singleLineText" },
+          { "name": "district_bkk", "type": "singleLineText" },
+          { "name": "accept_ent", "type": "singleSelect", "options": ["ใช่","ไม่"] },
+          { "name": "accept_up", "type": "singleSelect", "options": ["ใช่","ไม่"] },
+          { "name": "up_types", "type": "longText" },
+          { "name": "public_or_private", "type": "singleSelect", "options": ["สาธารณะ","ส่วนตัว","ทั้งสองอย่าง"] },
+          { "name": "kiss_with_tongue", "type": "singleSelect", "options": ["ใช่","ไม่"] },
+          { "name": "special_skills", "type": "longText" },
+          { "name": "strengths", "type": "longText" },
+          { "name": "bank_name", "type": "singleLineText" },
+          { "name": "bank_account", "type": "singleLineText" },
+          { "name": "notes", "type": "longText" },
+          { "name": "source", "type": "singleSelect", "options": ["KeepNote","Line","Form","Walk-in"] },
+          { "name": "saved_by", "type": "singleLineText" },
+          { "name": "created_at", "type": "createdTime" },
+          { "name": "memberstack_id", "type": "singleLineText" },
+          { "name": "vanity_slug", "type": "singleLineText", "description": "/model/{slug} (optional)" },
+          { "name": "consent_privacy", "type": "checkbox", "description": "ติ๊กเพื่อรับทราบการเก็บข้อมูล" }
+        ],
+        "formulaFields": [
+          {
+            "name": "canonical_slug",
+            "type": "formula",
+            "formula": "\"/model/\" & RIGHT(\"000\" & {model_id}, 3) & \"-\" & LOWER(SUBSTITUTE(TRIM({working_name}), \" \", \"-\"))",
+            "description": "/model/{id}-{slug} (auto)"
+          }
+        ],
+        "views": [
+          {
+            "name": "All Models",
+            "type": "grid",
+            "fields": ["model_id","profile_photo","working_name","nickname","gender","age","phone","district_bkk","canonical_slug","vanity_slug","consent_privacy"]
+          },
+          {
+            "name": "Model Application Form",
+            "type": "form",
+            "fieldsOrder": [
+              "profile_photo","nickname","working_name","gender","age","height_cm","weight_kg","occupation","phone","line_id","instagram","district_bkk",
+              "accept_ent","accept_up","up_types","public_or_private","kiss_with_tongue","special_skills","strengths","bank_name","bank_account","notes","consent_privacy"
+            ],
+            "formSettings": {
+              "title": "🍑 MMD Privé Model Application",
+              "description": "ข้อมูลเป็นความลับระหว่างเอเจนซี่กับนายแบบเท่านั้น — กรอกข้อมูลให้ครบถ้วน"
+            }
+          }
+        ],
+        "uniqueConstraints": [
+          { "field": "model_id", "type": "unique" },
+          { "field": "canonical_slug", "type": "unique" }
+        ]
+      }
+    ],
+    "postActions": {
+      "create_field_indexes": true,
+      "return": ["base_id","base_url","form_url","table_id"]
+    }
+  }
+}
