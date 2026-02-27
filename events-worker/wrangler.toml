@@ -1,3 +1,23 @@
-main = "index.js"
 name = "events-worker"
-compatibility_date = "2026-01-20"
+main = "src/index.js"
+compatibility_date = "2026-02-27"
+type = "javascript"
+account_id = "REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
+
+# cron triggers
+[triggers]
+crons = ["*/15 * * * *"] # run every 15 minutes
+
+# KV bindings (create namespace and replace id)
+kv_namespaces = [
+  { binding = "EVENTS_QUEUE_KV", id = "REPLACE_EVENTS_QUEUE_KV_ID" }
+]
+
+[vars]
+# required runtime vars (set actual values in dashboard or use wrangler kv/vars)
+TELEGRAM_WORKER_BASE = "https://telegram-worker.malemodel-bkk.workers.dev"
+PAYMENTS_WORKER_BASE = "https://payments-worker.malemodel-bkk.workers.dev"
+ADMIN_WORKER_BASE = "https://admin-worker.malemodel-bkk.workers.dev"
+
+# Airtable/other env names should be set in dashboard or wrangler environment
+# e.g. AIRTABLE_API_KEY, AIRTABLE_BASE_ID, AIRTABLE_TABLE_SESSIONS, AIRTABLE_TABLE_MODELS, AIRTABLE_TABLE_CLIENTS, AIRTABLE_TABLE_ACTIVITY_LOGS
