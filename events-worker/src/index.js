@@ -346,132 +346,19 @@ export default {
         return json({ ok:true, job_id, airtable: created.records?.[0]?.id || null }, 200, corsHeaders(cors));
       }
 
-<<<<<<< HEAD
-      /* -------------------------
-         job/get (existing)
-      ------------------------- */
-      if (path === "/v1/job/get" && method === "POST") {
+
+      if (path === "/v1/sessions/payment/intent" && req.method === "POST") {
         const body = await safeJson(req);
-        if (!body) return json({ ok:false, error:"invalid_json" }, 400, corsHeaders(cors));
-
-        const job_id = str(body.job_id);
-        if (!job_id) return json({ ok:false, error:"missing_job_id" }, 422, corsHeaders(cors));
-
-        const rec = await findJobByJobId(env, job_id);
-        if (!rec) return json({ ok:false, error:"job_not_found" }, 404, corsHeaders(cors));
-
-        return json({ ok:true, job: rec.fields, airtable_id: rec.id }, 200, corsHeaders(cors));
+        if (!body) return json({ ok: false, error: "invalid_json" }, 400, corsHeaders(cors));
+        return await handleSessionPaymentIntent(req, body, env, cors);
       }
 
-      /* -------------------------
-         job/event (existing + memory dispatch)
-      ------------------------- */
-      if (path === "/v1/job/event" && method === "POST") {
+      if (path === "/v1/sessions/tips/summary" && req.method === "POST") {
         const body = await safeJson(req);
-        if (!body) return json({ ok:false, error:"invalid_json" }, 400, corsHeaders(cors));
-
-        const job_id = str(body.job_id);
-        const event_raw = str(body.event);
-        const event = normalizeEventName(event_raw);
-
-        if (!job_id || !event) {
-          return json({ ok:false, error:"missing_required", required:["job_id","event"] }, 422, corsHeaders(cors));
-        }
-
-        // idempotency
-        const idemKey = str(body.idempotency_key);
-        if (idemKey) {
-          const prev = await idemGet(env, idemKey);
-          if (prev?.ok) return json({ ok:true, idempotent:true, result: prev.result }, 200, corsHeaders(cors));
-        }
-
-        const rec = await findJobByJobId(env, job_id);
-        if (!rec) return json({ ok:false, error:"job_not_found" }, 404, corsHeaders(cors));
-
-        const ts = nowIso();
-        let events = [];
-        try { events = JSON.parse(rec.fields?.events_json || "[]"); } catch { events = []; }
-
-        events.push({ ts, event, event_raw: event_raw || null, by: str(body.by) || "system", data: body.data || null });
-
-        // status resolution (existing behavior)
-        const statusFromBody = str(body.status);
-        const statusAuto =
-          DISPATCH_STATES.includes(event) ? event : (str(rec.fields?.status) || "confirmed");
-        const status = statusFromBody || statusAuto;
-
-        // MEMORY HARD GATE:
-        // block work_started unless final_payment_confirmed exists in history
-        if (status === "work_started" && !hasFinalPaymentConfirmed(events)) {
-          return json({ ok:false, error:"final_payment_required_before_work_started" }, 409, corsHeaders(cors));
-        }
-
-        // Update Airtable
-        const updated = await atFetch(env, "", {
-          method: "PATCH",
-          body: JSON.stringify({
-            records: [{
-              id: rec.id,
-              fields: {
-                status,
-                last_update_at: ts,
-                events_json: JSON.stringify(events),
-              }
-            }]
-          }),
-        });
-
-        // Existing: realtime open on t-15
-        let rt = null;
-        if (event === "t-15min_open_live_chat") {
-          const job = rec.fields || {};
-          const rtPayload = {
-            job_id,
-            cid: str(job.cid),
-            session_id: str(job.session_id),
-            model_code: str(job.model_code),
-            schedule_start_at: str(job.schedule_start_at),
-            meeting_point_text: str(job.meeting_point_text),
-            city: str(job.city),
-          };
-          rt = await rtRoomOpen(env, rtPayload);
-        }
-
-        // NEW (memory): dispatch side-effects via telegram-worker (optional)
-        let side_effects = [];
-        {
-          const job = rec.fields || {};
-          const tg1 = await tgInternalSend(env, buildDispatchPayload(event, status, job));
-          side_effects.push({ type:"telegram_notify", ...tg1 });
-
-          // Near arrival: request meeting point + balance QR (telegram-worker decides UI)
-          if (event === "nearby" || event === "arrived") {
-            const tg2 = await tgInternalSend(env, buildDispatchPayload(event, status, job, { action:"meeting_point_select_and_balance_qr" }));
-            side_effects.push({ type:"meeting_point_and_qr", ...tg2 });
-          }
-
-          // Separated -> review + tips
-          if (event === "separated") {
-            const tg3 = await tgInternalSend(env, buildDispatchPayload(event, status, job, { action:"request_review_and_tip" }));
-            side_effects.push({ type:"review_tip", ...tg3 });
-          }
-
-          // Review/Payout -> payout notice
-          if (event === "review" || event === "payout") {
-            const tg4 = await tgInternalSend(env, buildDispatchPayload(event, status, job, { action:"payout_notice", note:"payout target: within 30 minutes (handled by Per)" }));
-            side_effects.push({ type:"payout_notice", ...tg4 });
-          }
-        }
-
-        const result = { ok:true, job_id, status, updated_at: ts, airtable: updated.records?.[0]?.id || null, rt, side_effects };
-
-        if (idemKey) await idemPut(env, idemKey, { ok:true, result });
-
-        return json(result, 200, corsHeaders(cors));
+        if (!body) return json({ ok: false, error: "invalid_json" }, 400, corsHeaders(cors));
+        return await handleTipsSummary(req, body, env, cors);
       }
 
-      return json({ ok:false, error:"not_found" }, 404, corsHeaders(cors));
-=======
 
       if (path === "/v1/sessions/payment/intent" && req.method === "POST") {
         const body = await safeJson(req);
@@ -486,15 +373,12 @@ export default {
       }
 
       return json({ ok: false, error: "not_found" }, 404, corsHeaders(cors));
->>>>>>> b0304e7 (Feat: events-worker 24h reminder + 12h ack check (cron))
     } catch (err) {
       if (err instanceof HttpError) return json(err.body, err.status, corsHeaders(cors));
       return json({ ok:false, error:"server_error", detail:String(err?.message || err) }, 500, corsHeaders(cors));
     }
   },
 };
-<<<<<<< HEAD
-=======
 
 async function handleRulesAck(req, body, env, cors) {
   requireConfirmKey(req, env);
@@ -801,4 +685,4 @@ async function airtableSumPaidForStage(sessionId, stage, env) {
   return sum;
 }
 
->>>>>>> b0304e7 (Feat: events-worker 24h reminder + 12h ack check (cron))
+>>>>>>> main
