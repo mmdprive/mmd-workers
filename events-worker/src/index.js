@@ -372,6 +372,19 @@ export default {
         return await handleTipsSummary(req, body, env, cors);
       }
 
+
+      if (path === "/v1/sessions/payment/intent" && req.method === "POST") {
+        const body = await safeJson(req);
+        if (!body) return json({ ok: false, error: "invalid_json" }, 400, corsHeaders(cors));
+        return await handleSessionPaymentIntent(req, body, env, cors);
+      }
+
+      if (path === "/v1/sessions/tips/summary" && req.method === "POST") {
+        const body = await safeJson(req);
+        if (!body) return json({ ok: false, error: "invalid_json" }, 400, corsHeaders(cors));
+        return await handleTipsSummary(req, body, env, cors);
+      }
+
       return json({ ok: false, error: "not_found" }, 404, corsHeaders(cors));
     } catch (err) {
       if (err instanceof HttpError) return json(err.body, err.status, corsHeaders(cors));
