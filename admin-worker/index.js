@@ -1,4 +1,4 @@
-// src/index.js
+// /index.js
 // =========================================================
 // admin-worker — Admin API / Core Orchestrator
 //
