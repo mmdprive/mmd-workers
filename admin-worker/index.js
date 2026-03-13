@@ -54,6 +54,17 @@ export default {
     }
 
     // ------------------------------------------------------
+    // DEMO LINKS (internal tool + public confirm fetch)
+    // ------------------------------------------------------
+    if (method === "POST" && path === "/v1/demo-links/create") {
+      return withCors(await demoLinksCreate(req, env), cors);
+    }
+
+    if (method === "GET" && path === "/v1/demo-links/get") {
+      return withCors(await demoLinksGet(req, env), cors);
+    }
+
+    // ------------------------------------------------------
     // Admin routes
     // ------------------------------------------------------
     if (path.startsWith("/v1/admin/")) {
@@ -290,11 +301,14 @@ export default {
         const r = await telegramInternalSend(env, body);
 
         return withCors(
-          json({
-            ok: r.ok,
-            layer: "core",
-            telegram: r,
-          }, r.ok ? 200 : 502),
+          json(
+            {
+              ok: r.ok,
+              layer: "core",
+              telegram: r,
+            },
+            r.ok ? 200 : 502
+          ),
           cors
         );
       }
@@ -520,11 +534,7 @@ function numReq(value, field) {
 
 function inferLayerFromTable(tableName) {
   const t = str(tableName).toLowerCase();
-  if (
-    t.includes("migration") ||
-    t.includes("immigration") ||
-    t.includes("bridge")
-  ) {
+  if (t.includes("migration") || t.includes("immigration") || t.includes("bridge")) {
     return "immigration";
   }
   return "core_or_bridge";
@@ -582,6 +592,174 @@ function getAllowedModelFields(env) {
         "line_id",
       ].join(",")
   );
+}
+
+function normalizeDemoState(value) {
+  const v = str(value).toLowerCase();
+  if (v === "pending" || v === "paid" || v === "invalid") return v;
+  return "pending";
+}
+
+function normalizePaymentType(value) {
+  const v = str(value).toLowerCase();
+  if (v === "deposit" || v === "final" || v === "full" || v === "tips") return v;
+  return "final";
+}
+
+function generateDemoId() {
+  return `demo_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
+}
+
+function escapeFormulaString(value) {
+  return String(value || "").replace(/"/g, '\\"');
+}
+
+function getDemoMessage(demoState) {
+  if (demoState === "paid") {
+    return "ระบบบันทึกรายการนี้เรียบร้อย และ session นี้ได้รับการยืนยันแล้ว";
+  }
+  if (demoState === "invalid") {
+    return "ลิงก์อาจหมดอายุหรือไม่ถูกต้อง กรุณาติดต่อ MMD เพื่อรับลิงก์ใหม่";
+  }
+  return "ยอดคงเหลือสำหรับ session นี้ยังไม่ได้ชำระ สามารถดำเนินการต่อได้จากหน้านี้";
+}
+
+/* =========================
+   DEMO LINKS
+========================= */
+async function demoLinksCreate(req, env) {
+  if (!isAuthed(req, env)) {
+    return json({ ok: false, error: "unauthorized" }, 401);
+  }
+
+  if (!env.AIRTABLE_API_KEY || !env.AIRTABLE_BASE_ID) {
+    return json({ ok: false, error: "missing_airtable_env" }, 500);
+  }
+
+  const body = await safeJson(req);
+  const demo_state = normalizeDemoState(body.demo_state);
+  const confirm_base_url = str(body.confirm_base_url || env.WEB_BASE_URL || "https://mmdbkk.com").replace(/\/+$/, "");
+  const demo_id = generateDemoId();
+
+  const fields = {
+    demo_id,
+    demo_state,
+    client_name: demo_state === "invalid" ? "" : str(body.client_name),
+    model_name: demo_state === "invalid" ? "" : str(body.model_name),
+    job_name: demo_state === "invalid" ? "" : str(body.job_name),
+    event_date: demo_state === "invalid" ? "" : str(body.event_date),
+    event_time: demo_state === "invalid" ? "" : str(body.event_time),
+    location_name: demo_state === "invalid" ? "" : str(body.location_name),
+    amount_thb: demo_state === "invalid" ? 0 : num(body.amount_thb),
+    session_id: demo_state === "invalid" ? "" : str(body.session_id),
+    payment_ref: demo_state === "invalid" ? "" : str(body.payment_ref),
+    payment_type: demo_state === "invalid" ? "" : normalizePaymentType(body.payment_type),
+    created_by: str(body.created_by || "admin"),
+    notes: str(body.notes || ""),
+    confirm_base_url,
+    generated_url: `${confirm_base_url}/confirm#demo_id=${encodeURIComponent(demo_id)}`,
+    created_at_iso: new Date().toISOString(),
+    updated_at_iso: new Date().toISOString(),
+    is_active: true,
+  };
+
+  if (demo_state !== "invalid") {
+    const required = [
+      ["client_name", fields.client_name],
+      ["model_name", fields.model_name],
+      ["job_name", fields.job_name],
+      ["event_date", fields.event_date],
+      ["event_time", fields.event_time],
+      ["location_name", fields.location_name],
+    ];
+
+    for (const [key, value] of required) {
+      if (!value) {
+        return json({ ok: false, error: `missing_${key}` }, 400);
+      }
+    }
+
+    if (!Number.isFinite(fields.amount_thb) || fields.amount_thb <= 0) {
+      return json({ ok: false, error: "invalid_amount_thb" }, 400);
+    }
+  }
+
+  try {
+    const rec = await airtableCreate({
+      baseId: env.AIRTABLE_BASE_ID,
+      tableId: env.AIRTABLE_TABLE_DEMO_LINKS || "demo_links",
+      apiKey: env.AIRTABLE_API_KEY,
+      fields,
+    });
+
+    return json({
+      ok: true,
+      demo_id,
+      generated_url: fields.generated_url,
+      airtable_record_id: rec?.id || null,
+      data: fields,
+    });
+  } catch (e) {
+    return json({ ok: false, error: String(e?.message || e || "demo_link_create_failed") }, 500);
+  }
+}
+
+async function demoLinksGet(req, env) {
+  if (!env.AIRTABLE_API_KEY || !env.AIRTABLE_BASE_ID) {
+    return json({ ok: false, error: "missing_airtable_env" }, 500);
+  }
+
+  const url = new URL(req.url);
+  const demo_id = str(url.searchParams.get("demo_id"));
+
+  if (!demo_id) {
+    return json({ ok: false, error: "missing_demo_id" }, 400);
+  }
+
+  try {
+    const rec = await airtableFindOne(
+      env,
+      env.AIRTABLE_TABLE_DEMO_LINKS || "demo_links",
+      `{demo_id}="${escapeFormulaString(demo_id)}"`
+    );
+
+    if (!rec) {
+      return json({ ok: false, error: "not_found" }, 404);
+    }
+
+    const f = rec.fields || {};
+    const demo_state = normalizeDemoState(f.demo_state);
+    const amount_thb = demo_state === "invalid" ? "" : num(f.amount_thb);
+    const is_paid = demo_state === "paid";
+
+    return json({
+      ok: true,
+      demo_id: str(f.demo_id),
+      demo_state,
+      session_id: demo_state === "invalid" ? "" : str(f.session_id),
+      payment_ref: demo_state === "invalid" ? "" : str(f.payment_ref),
+      payment_type: demo_state === "invalid" ? "" : str(f.payment_type),
+      amount_thb,
+      remaining_amount_thb: demo_state === "invalid" ? "" : is_paid ? 0 : amount_thb,
+      verification_status: demo_state === "invalid" ? "" : is_paid ? "Confirmed" : "Pending",
+      payment_status: demo_state === "invalid" ? "" : is_paid ? "Paid" : "Unpaid",
+      updated_at: str(f.updated_at_iso || f.created_at_iso),
+      message: getDemoMessage(demo_state),
+      client_name: demo_state === "invalid" ? "" : str(f.client_name),
+      model_name: demo_state === "invalid" ? "" : str(f.model_name),
+      job_name: demo_state === "invalid" ? "" : str(f.job_name),
+      event_date: demo_state === "invalid" ? "" : str(f.event_date),
+      event_time: demo_state === "invalid" ? "" : str(f.event_time),
+      location_name: demo_state === "invalid" ? "" : str(f.location_name),
+      promptpay_url: "",
+      card_enabled: demo_state !== "invalid" && !is_paid,
+      promptpay_enabled: demo_state !== "invalid" && !is_paid,
+      is_paid,
+      is_mock: true,
+    });
+  } catch (e) {
+    return json({ ok: false, error: String(e?.message || e || "demo_link_get_failed") }, 500);
+  }
 }
 
 /* =========================
@@ -727,7 +905,7 @@ async function airtableUpsertModel(env, tableName, body) {
 }
 
 async function airtableCreate({ baseId, tableId, apiKey, fields }) {
-  const r = await fetch(`${AIRTABLE_API}/${baseId}/${tableId}`, {
+  const r = await fetch(`${AIRTABLE_API}/${baseId}/${encodeURIComponent(tableId)}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -735,6 +913,7 @@ async function airtableCreate({ baseId, tableId, apiKey, fields }) {
     },
     body: JSON.stringify({
       records: [{ fields }],
+      typecast: true,
     }),
   });
 
