@@ -1,0 +1,34 @@
+{
+  "name": "mmd-chat-webhook",
+  "version": "1.1.0",
+  "description": "MMD Chat Webhook / AI concierge starter (webhook for classifier, matching, canonical_slug fallback + Airtable update)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "start:dev": "nodemon index.js",
+    "test:curl": "node test_runs.js"
+  },
+  "keywords": [
+    "mmd",
+    "webhook",
+    "airtable",
+    "chat",
+    "ai",
+    "concierge"
+  ],
+  "author": "MMD Privé",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.7",
+    "slugify": "^1.6.6",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
