@@ -1,0 +1,46 @@
+export const AT = {
+  SESSIONS: {
+    SESSION_ID: "fldLTq2kZbyRv22IA",
+    STATUS: "fldHAlxnRfpKucnNV",
+    PACKAGE_CODE: "fldp6xNSvxDh5pjR9",
+    AMOUNT_THB: "fldhwC79ndbnEXSZz",
+    PAYMENT_STATUS: "fldTY5lE6m0kQf72n",
+    PAYMENT_REF: "fldojgjSQLaO0uQLX",
+    MEMBERSTACK_ID: "fldjelgJTzCHSCWZ0",
+
+    CUSTOMER_TELEGRAM_USERNAME: "fld4DR9g4mEGX1fY1",
+    MODEL_TELEGRAM_USERNAME: "fldEiYlmpAFgLS3or",
+    LINE_USER_ID: "fld5tzCzdTTh8AJyI",
+    JOB_ID: "fldHw5HdDDdkHXMhG",
+
+    BASE_PRICE_THB: "fldDJhAadiWBr5IxS",
+    ADDON_1_NAME: "fldB4VaqL5WQMuIQc",
+    ADDON_1_PRICE_THB: "fldoljkFyEGBG4WG2",
+    ADDON_2_NAME: "fldwvFmq7nzvwMRQb",
+    ADDON_2_PRICE_THB: "fldNjpBzmXzMu1gxm",
+    ADDON_3_NAME: "fldG919c6kp0IDmYk",
+    ADDON_3_PRICE_THB: "fldyF0PSXHVaVxNSs",
+    ADDON_4_NAME: "fldqXRwRy5O77EeW0",
+    ADDON_4_PRICE_THB: "fldWBweLDvRRNAAD9",
+    ADDONS_TOTAL_THB: "fldpyZCttPVRFbzjX",
+    FINAL_PRICE_THB: "fldug5LUyiLyLvrCV",
+  },
+
+  PAYMENTS: {
+    PAYMENT_REF: "fldOO6SY49iDw8VBZ",
+    PAYMENT_DATE: "fld3yAwxIu2dkw7fO",
+    AMOUNT: "fldvCSwrUW8OMAooS",
+    PAYMENT_STATUS: "fldEJ1hmm7KwWuI6q",
+    PAYMENT_METHOD: "fldsblzIn0wzan3c9",
+    VERIFICATION_STATUS: "fldJ7a0Ube9F0bmRy",
+    PAYMENT_INTENT_STATUS: "fld04fr3bRJTohO6y",
+    PACKAGE_CODE: "fldfyHYVrzbGPvMJR",
+    CREATED_AT: "flduxcPpowBxEZSLu",
+
+    SESSION_ID: "fld2wdhBvc8xrV6y5",
+    PAYMENT_STAGE: "fldrr9g8ZZjqAbdKQ",
+    PROVIDER: "fldJNMenT0woUXbKG",
+    PROVIDER_TXN_ID: "fldHUvPn5CxK9i1Mq",
+    NOTES: "fldjsZIKoJPawlb2u",
+  },
+} as const;

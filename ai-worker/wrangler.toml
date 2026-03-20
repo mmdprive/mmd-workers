@@ -1,0 +1,15 @@
+name = "ai-worker"
+main = "index.js"
+compatibility_date = "2026-03-12"
+workers_dev = true
+
+[vars]
+WEB_BASE_URL = "https://mmdbkk.com"
+ADMIN_WORKER_BASE_URL = "https://admin-worker.example.workers.dev"
+PAYMENTS_WORKER_BASE_URL = "https://payments-worker.example.workers.dev"
+EVENTS_WORKER_BASE_URL = "https://events-worker.example.workers.dev"
+AI_DEFAULT_LIMIT = "10"
+AI_MAX_LIMIT = "30"
+AI_TIMEOUT_MS = "12000"
+AI_ENABLE_RECOMMEND = "true"
+AI_ENABLE_MEMBER_CONTEXT = "true"

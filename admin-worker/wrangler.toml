@@ -1,32 +1,38 @@
-# admin-worker/wrangler.toml
-# LOCK v2026-LOCK-01
-
 name = "admin-worker"
-main = "src/index.js"
-compatibility_date = "2026-01-01"
-workers_dev = true
+main = "index.js"
+compatibility_date = "2026-03-19"
 
-# ใช้สำหรับ CORS (browser calls)
 [vars]
-ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
+ALLOWED_ORIGINS = "https://mmdprive.com,https://mmdprive.webflow.io"
 
-# Base URLs (LOCK)
-PAYMENTS_BASE_URL = "https://payments-worker.malemodel-bkk.workers.dev"
-TELEGRAM_INTERNAL_SEND_URL = "https://telegram-worker.malemodel-bkk.workers.dev/telegram/internal/send"
-
-# Airtable
 AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
 
-# Writer table IDs (LOCK)
-AIRTABLE_TABLE_CONSOLE_INBOX_ID = "tblFHmfpB2TTrzO2e"
-AIRTABLE_TABLE_PAYMENT_PROOFS_ID = "tblfJfM4Sqag9zrLi"
+POINTS_RATE = "100"
 
-# Optional table names (ถ้าคุณใช้ name-based endpoints)
-AIRTABLE_TABLE_MEMBERS = "members"
-AIRTABLE_TABLE_MODELS = "models"
+AIRTABLE_TABLE_SESSIONS = "Sessions"
+AIRTABLE_TABLE_PAYMENTS = "payments"
+AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
 
-# ---- Secrets (set via wrangler secret) ----
-# ADMIN_BEARER
-# CONFIRM_KEY
-# AIRTABLE_API_KEY
-# INTERNAL_TOKEN
+AIRTABLE_TABLE_CLIENTS_ID = "tblVv58TCbwh5j1fS"
+AIRTABLE_CLIENT_NAME_FIELD = "Client Name"
+
+AIRTABLE_TABLE_MODELS_ID = "tblcatsmzAT5nKqIn"
+AIRTABLE_MODEL_NAME_FIELD = "Model Name"
+
+AT_SESSIONS__SESSION_ID = "session_id"
+AT_SESSIONS__MEMBERSTACK_ID = "memberstack_id"
+AT_SESSIONS__STATUS = "status"
+AT_SESSIONS__PAYMENT_STATUS = "payment_status"
+AT_SESSIONS__PAYMENT_REF = "payment_ref"
+AT_SESSIONS__PACKAGE_CODE = "package_code"
+AT_SESSIONS__AMOUNT_THB = "amount_thb"
+
+AT_PAYMENTS__PAYMENT_REF = "payment_ref"
+AT_PAYMENTS__AMOUNT = "amount_thb"
+AT_PAYMENTS__PAYMENT_STATUS = "payment_status"
+AT_PAYMENTS__PAYMENT_METHOD = "payment_method"
+AT_PAYMENTS__PAYMENT_DATE = "paid_at"
+AT_PAYMENTS__CREATED_AT = "created_at"
+AT_PAYMENTS__PACKAGE_CODE = "package_code"
+AT_PAYMENTS__SESSION_ID = "session_id"
+AT_PAYMENTS__VERIFICATION_STATUS = "verification_status"

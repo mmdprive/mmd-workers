@@ -1,40 +1,21 @@
 name = "events-worker"
-<<<<<<< HEAD
-compatibility_date = "2026-01-20"
+main = "index.js"
+compatibility_date = "2026-03-12"
+workers_dev = true
+
+[triggers]
+crons = ["*/15 * * * *"]
 
 [vars]
-ALLOWED_ORIGINS = "https://mmdbkk.com,https://mmdprive.com"
+ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
 AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
 AIRTABLE_TABLE_JOBS = "jobs"
 EVENTS_IDEMPOTENCY_TTL_DAYS = "7"
-
-# Optional (enable dispatch notify)
 TELEGRAM_WORKER_BASE_URL = "https://telegram-worker.malemodel-bkk.workers.dev"
-
-[[kv_namespaces]]
-binding = "EVENTS_IDEMPOTENCY_KV"
-id = "PUT_YOUR_KV_ID_HERE"
-=======
-main = "src/index.js"
-compatibility_date = "2026-02-27"
-type = "javascript"
-account_id = "REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
-
-# cron triggers
-[triggers]
-crons = ["*/15 * * * *"] # run every 15 minutes
-
-# KV bindings (create namespace and replace id)
-kv_namespaces = [
-  { binding = "EVENTS_QUEUE_KV", id = "REPLACE_EVENTS_QUEUE_KV_ID" }
-]
-
-[vars]
-# required runtime vars (set actual values in dashboard or use wrangler kv/vars)
 TELEGRAM_WORKER_BASE = "https://telegram-worker.malemodel-bkk.workers.dev"
 PAYMENTS_WORKER_BASE = "https://payments-worker.malemodel-bkk.workers.dev"
 ADMIN_WORKER_BASE = "https://admin-worker.malemodel-bkk.workers.dev"
 
-# Airtable/other env names should be set in dashboard or wrangler environment
-# e.g. AIRTABLE_API_KEY, AIRTABLE_BASE_ID, AIRTABLE_TABLE_SESSIONS, AIRTABLE_TABLE_MODELS, AIRTABLE_TABLE_CLIENTS, AIRTABLE_TABLE_ACTIVITY_LOGS
->>>>>>> b0304e7 (Feat: events-worker 24h reminder + 12h ack check (cron))
+[[kv_namespaces]]
+binding = "EVENTS_IDEMPOTENCY_KV"
+id = "PUT_YOUR_KV_ID_HERE"

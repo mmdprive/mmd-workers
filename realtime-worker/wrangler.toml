@@ -1,11 +1,7 @@
 name = "realtime-worker"
-main = "src/index.js"
-compatibility_date = "2026-01-27"
-
-# ถ้าอยากให้มี workers.dev แน่นอน
+main = "index.js"
+compatibility_date = "2026-03-12"
 workers_dev = true
-# ถ้าไม่อยากให้มี preview url
-# preview_urls = false
 
 [durable_objects]
 bindings = [
@@ -17,13 +13,10 @@ tag = "v1"
 new_classes = ["RoomDO"]
 
 [vars]
-ALLOWED_ORIGINS = "https://mmdprive.webflow.io,https://mmdprive.com"
-WEB_BASE_URL = "https://mmdprive.webflow.io"
-CONFIRM_BASE_URL = "https://mmdprive.webflow.io"
-
+ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
+WEB_BASE_URL = "https://mmdbkk.com"
+CONFIRM_BASE_URL = "https://mmdbkk.com"
 ROOM_TTL_SECONDS = "7200"
-
-# live chat / video call policy
 VIDEO_PROVIDER = "daily"
 VIDEO_MAX_CALLS = "2"
 VIDEO_CALL_SECONDS = "10"
