@@ -1,0 +1,18 @@
+name = "immigrate-worker"
+main = "src/index.ts"
+compatibility_date = "2026-03-21"
+
+[vars]
+AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+AIRTABLE_TABLE_CONSOLE_INBOX = "MMD - Console Inbox"
+AIRTABLE_TABLE_CLIENTS = "Clients"
+AIRTABLE_TABLE_SESSIONS = "Sessions"
+AIRTABLE_TABLE_PAYMENT_PROOFS = "MMD - Payment Proofs"
+AIRTABLE_TABLE_ACTIVITY_LOGS = "Activity Logs"
+TELEGRAM_WORKER_BASE_URL = "telegram-worker.malemodel-bkk.workers.dev"
+TELEGRAM_CHAT_ID = "-1003546439681"
+TG_THREAD_CONFIRM = "61"
+TG_THREAD_POINTS = "17"
+TG_THREAD_MEMBERSHIP = "20"
+ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:8787,https://mmdbkk.com,https://mmdprive.com,https://mmdprive.webflow.io"
+IMMIGRATE_WRITE_ENABLED = "true"
