@@ -8,3 +8,8 @@ dist/
 .wrangler/
 .env
 .env.*
+
+node_modules/
+dist/
+.wrangler/
+admin-console-V1/.next/
