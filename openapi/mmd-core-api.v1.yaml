@@ -1,0 +1,422 @@
+openapi: 3.0.3
+info:
+  title: MMD Core API
+  version: 1.0.0
+  description: >
+    Core API for MMD Privé access flow, payment flow, membership application,
+    and Guest7 lifecycle automation.
+
+servers:
+  - url: https://api.mmdbkk.com
+
+tags:
+  - name: Sessions
+  - name: Payments
+  - name: Membership
+  - name: Guest Lifecycle
+
+paths:
+  /v1/session/create:
+    post:
+      tags: [Sessions]
+      summary: Create a new intake/session bridge record
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '200':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /v1/pay/create:
+    post:
+      tags: [Payments]
+      summary: Create payment intent/session for package purchase
+      operationId: createPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '200':
+          description: Payment session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /v1/pay/verify:
+    post:
+      tags: [Payments]
+      summary: Verify payment and persist financial result
+      operationId: verifyPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPaymentRequest'
+      responses:
+        '200':
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyPaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /v1/admin/membership/apply:
+    post:
+      tags: [Membership]
+      summary: Apply package access after successful payment
+      operationId: applyMembership
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyMembershipRequest'
+      responses:
+        '200':
+          description: Membership/package applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyMembershipResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /v1/guest/sweep:
+    post:
+      tags: [Guest Lifecycle]
+      summary: Sweep Guest7 records for expiry and qualification
+      operationId: sweepGuestLifecycle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuestSweepRequest'
+      responses:
+        '200':
+          description: Sweep complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestSweepResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    PackageCode:
+      type: string
+      enum: [guest7, standard, premium, blackcard]
+
+    PaymentType:
+      type: string
+      enum: [deposit, final, full, tips]
+
+    PaymentStatus:
+      type: string
+      enum: [pending, paid, failed, cancelled]
+
+    VerificationStatus:
+      type: string
+      enum: [pending, verified, rejected]
+
+    GuestStatus:
+      type: string
+      enum: [active, expired, qualified, closed]
+
+    CreateSessionRequest:
+      type: object
+      required:
+        - memberstack_id
+        - package_code
+        - membership_action
+      properties:
+        memberstack_id:
+          type: string
+        member_email:
+          type: string
+          format: email
+        client_name:
+          type: string
+        package_code:
+          $ref: '#/components/schemas/PackageCode'
+        membership_action:
+          type: string
+          example: apply_guest7
+        source:
+          type: string
+          example: web
+        payment_ref:
+          type: string
+          description: Optional at session-creation time; may be attached later
+
+    CreateSessionResponse:
+      type: object
+      required:
+        - ok
+        - session_id
+      properties:
+        ok:
+          type: boolean
+          example: true
+        session_id:
+          type: string
+          example: sess_01HXYZABC123
+        status:
+          type: string
+          example: created
+
+    CreatePaymentRequest:
+      type: object
+      required:
+        - session_id
+        - memberstack_id
+        - package_code
+        - amount_thb
+        - payment_type
+      properties:
+        session_id:
+          type: string
+        memberstack_id:
+          type: string
+        member_email:
+          type: string
+          format: email
+        package_code:
+          $ref: '#/components/schemas/PackageCode'
+        amount_thb:
+          type: number
+          example: 2000
+        payment_type:
+          $ref: '#/components/schemas/PaymentType'
+        source:
+          type: string
+          example: web
+        provider:
+          type: string
+          example: promptpay
+
+    CreatePaymentResponse:
+      type: object
+      required:
+        - ok
+        - payment_ref
+        - payment_status
+      properties:
+        ok:
+          type: boolean
+          example: true
+        payment_ref:
+          type: string
+          example: pay_01HXYZABC123
+        payment_status:
+          $ref: '#/components/schemas/PaymentStatus'
+        promptpay_url:
+          type: string
+          nullable: true
+        qr_payload:
+          type: string
+          nullable: true
+
+    VerifyPaymentRequest:
+      type: object
+      required:
+        - session_id
+        - payment_ref
+        - payment_status
+        - verification_status
+      properties:
+        session_id:
+          type: string
+        payment_ref:
+          type: string
+        payment_status:
+          $ref: '#/components/schemas/PaymentStatus'
+        verification_status:
+          $ref: '#/components/schemas/VerificationStatus'
+        provider:
+          type: string
+          example: promptpay
+        provider_txn_id:
+          type: string
+        paid_at:
+          type: string
+          format: date-time
+        amount_thb:
+          type: number
+        payment_type:
+          $ref: '#/components/schemas/PaymentType'
+        package_code:
+          $ref: '#/components/schemas/PackageCode'
+
+    VerifyPaymentResponse:
+      type: object
+      required:
+        - ok
+        - payment_ref
+        - verification_status
+      properties:
+        ok:
+          type: boolean
+          example: true
+        payment_ref:
+          type: string
+        verification_status:
+          $ref: '#/components/schemas/VerificationStatus'
+        next_action:
+          type: string
+          example: apply_membership
+
+    ApplyMembershipRequest:
+      type: object
+      required:
+        - memberstack_id
+        - member_email
+        - package_code
+        - payment_ref
+        - paid_at
+      properties:
+        memberstack_id:
+          type: string
+        member_email:
+          type: string
+          format: email
+        package_code:
+          $ref: '#/components/schemas/PackageCode'
+        payment_ref:
+          type: string
+        paid_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+          example: web
+        amount_thb:
+          type: number
+        provider:
+          type: string
+
+    ApplyMembershipResponse:
+      type: object
+      required:
+        - ok
+        - package_code
+        - status
+      properties:
+        ok:
+          type: boolean
+          example: true
+        package_code:
+          $ref: '#/components/schemas/PackageCode'
+        status:
+          type: string
+          example: active
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+
+    GuestSweepRequest:
+      type: object
+      properties:
+        dry_run:
+          type: boolean
+          default: false
+        limit:
+          type: integer
+          default: 100
+
+    GuestSweepResultItem:
+      type: object
+      properties:
+        member_email:
+          type: string
+          format: email
+        package_code:
+          type: string
+          example: guest7
+        previous_status:
+          $ref: '#/components/schemas/GuestStatus'
+        next_status:
+          $ref: '#/components/schemas/GuestStatus'
+        total_spend_30d:
+          type: number
+          example: 1500
+        qualified:
+          type: boolean
+
+    GuestSweepResponse:
+      type: object
+      required:
+        - ok
+        - processed
+      properties:
+        ok:
+          type: boolean
+          example: true
+        processed:
+          type: integer
+          example: 12
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuestSweepResultItem'
+
+    ErrorResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: invalid_request
+        message:
+          type: string
+          example: Missing required field
