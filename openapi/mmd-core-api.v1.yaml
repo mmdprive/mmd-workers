@@ -1,4 +1,5 @@
 openapi: 3.0.3
+
 info:
   title: MMD Core API
   version: 1.0.0
@@ -11,14 +12,19 @@ servers:
 
 tags:
   - name: Sessions
+    description: Session / intake bridge endpoints
   - name: Payments
+    description: Payment session creation and verification
   - name: Membership
+    description: Membership / package application endpoints
   - name: Guest Lifecycle
+    description: Guest7 expiry and qualification automation
 
 paths:
   /v1/session/create:
     post:
-      tags: [Sessions]
+      tags:
+        - Sessions
       summary: Create a new intake/session bridge record
       operationId: createSession
       requestBody:
@@ -27,6 +33,16 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateSessionRequest'
+            examples:
+              guest7:
+                summary: Create Guest7 session
+                value:
+                  memberstack_id: memstk_abc123
+                  member_email: user@example.com
+                  client_name: Jay
+                  package_code: guest7
+                  membership_action: apply_guest7
+                  source: web
       responses:
         '200':
           description: Session created
@@ -34,12 +50,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreateSessionResponse'
+              examples:
+                created:
+                  summary: Session created
+                  value:
+                    ok: true
+                    session_id: sess_01HXYZABC123
+                    status: created
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_field:
+                  summary: Missing required field
+                  value:
+                    ok: false
+                    error: invalid_request
+                    message: Missing required field: package_code
+                    code: GEN_400_MISSING_FIELD
+        '409':
+          description: Duplicate session or conflicting request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                duplicate_session:
+                  summary: Session already exists
+                  value:
+                    ok: false
+                    error: conflict
+                    message: Session already exists for this request
+                    code: SES_409_DUPLICATE
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_action:
+                  summary: Invalid membership action
+                  value:
+                    ok: false
+                    error: validation_failed
+                    message: membership_action is not allowed for package_code
+                    code: SES_422_INVALID_ACTION
 
   /v1/pay/create:
     post:
-      tags: [Payments]
+      tags:
+        - Payments
       summary: Create payment intent/session for package purchase
       operationId: createPayment
       requestBody:
@@ -48,6 +112,18 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreatePaymentRequest'
+            examples:
+              guest7_payment:
+                summary: Create Guest7 payment
+                value:
+                  session_id: sess_01HXYZABC123
+                  memberstack_id: memstk_abc123
+                  member_email: user@example.com
+                  package_code: guest7
+                  amount_thb: 2000
+                  payment_type: full
+                  source: web
+                  provider: promptpay
       responses:
         '200':
           description: Payment session created
@@ -55,12 +131,66 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreatePaymentResponse'
+              examples:
+                promptpay_created:
+                  summary: PromptPay payment session created
+                  value:
+                    ok: true
+                    payment_ref: pay_01HXYZABC123
+                    payment_status: pending
+                    promptpay_url: https://api.mmdbkk.com/pay/pay_01HXYZABC123
+                    qr_payload: 000201010212...
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_amount:
+                  summary: Missing amount
+                  value:
+                    ok: false
+                    error: invalid_request
+                    message: Missing required field: amount_thb
+                    code: PAY_400_MISSING_AMOUNT
+        '409':
+          description: Payment already exists or duplicate create request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                payment_exists:
+                  summary: Payment already exists for session
+                  value:
+                    ok: false
+                    error: conflict
+                    message: Payment already exists for this session
+                    code: PAY_409_ALREADY_EXISTS
+        '422':
+          description: Validation failed or amount mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                amount_mismatch:
+                  summary: Package amount mismatch
+                  value:
+                    ok: false
+                    error: validation_failed
+                    message: Amount does not match package pricing
+                    code: PAY_422_AMOUNT_MISMATCH
+                    details:
+                      package_code: guest7
+                      expected_amount_thb: 2000
+                      received_amount_thb: 1500
 
   /v1/pay/verify:
     post:
-      tags: [Payments]
+      tags:
+        - Payments
       summary: Verify payment and persist financial result
       operationId: verifyPayment
       requestBody:
@@ -69,6 +199,20 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/VerifyPaymentRequest'
+            examples:
+              verified_payment:
+                summary: Verify paid payment
+                value:
+                  session_id: sess_01HXYZABC123
+                  payment_ref: pay_01HXYZABC123
+                  payment_status: paid
+                  verification_status: verified
+                  provider: promptpay
+                  provider_txn_id: txn_abc123
+                  paid_at: '2026-03-25T10:00:00Z'
+                  amount_thb: 2000
+                  payment_type: full
+                  package_code: guest7
       responses:
         '200':
           description: Payment verified
@@ -76,12 +220,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VerifyPaymentResponse'
+              examples:
+                verified:
+                  summary: Payment verified
+                  value:
+                    ok: true
+                    payment_ref: pay_01HXYZABC123
+                    verification_status: verified
+                    next_action: apply_membership
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_ref:
+                  summary: Missing payment reference
+                  value:
+                    ok: false
+                    error: invalid_request
+                    message: Missing required field: payment_ref
+                    code: PAY_400_MISSING_REF
+        '404':
+          description: Payment reference not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: Payment reference not found
+                  value:
+                    ok: false
+                    error: not_found
+                    message: Payment reference not found
+                    code: PAY_404_REF_NOT_FOUND
+        '409':
+          description: Payment already verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                already_verified:
+                  summary: Payment already verified
+                  value:
+                    ok: false
+                    error: conflict
+                    message: Payment has already been verified
+                    code: PAY_409_ALREADY_VERIFIED
+        '422':
+          description: Provider or validation mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                provider_mismatch:
+                  summary: Provider data mismatch
+                  value:
+                    ok: false
+                    error: validation_failed
+                    message: Provider transaction data does not match payment record
+                    code: PAY_422_PROVIDER_MISMATCH
+                    details:
+                      payment_ref: pay_01HXYZABC123
+                      provider: promptpay
 
   /v1/admin/membership/apply:
     post:
-      tags: [Membership]
+      tags:
+        - Membership
       summary: Apply package access after successful payment
       operationId: applyMembership
       security:
@@ -92,6 +302,18 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ApplyMembershipRequest'
+            examples:
+              apply_guest7:
+                summary: Apply Guest7 after successful payment
+                value:
+                  memberstack_id: memstk_abc123
+                  member_email: user@example.com
+                  package_code: guest7
+                  payment_ref: pay_01HXYZABC123
+                  paid_at: '2026-03-25T10:00:00Z'
+                  source: web
+                  amount_thb: 2000
+                  provider: promptpay
       responses:
         '200':
           description: Membership/package applied
@@ -99,14 +321,90 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApplyMembershipResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+              examples:
+                applied:
+                  summary: Membership applied
+                  value:
+                    ok: true
+                    package_code: guest7
+                    status: active
+                    start_date: '2026-03-25'
+                    end_date: '2026-04-01'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_member:
+                  summary: Missing member email
+                  value:
+                    ok: false
+                    error: invalid_request
+                    message: Missing required field: member_email
+                    code: MEM_400_MISSING_MEMBER
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unauthorized:
+                  summary: Unauthorized request
+                  value:
+                    ok: false
+                    error: unauthorized
+                    message: Invalid or missing bearer token
+                    code: AUTH_401_INVALID_TOKEN
+        '404':
+          description: Member or payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                member_not_found:
+                  summary: Member not found
+                  value:
+                    ok: false
+                    error: not_found
+                    message: Member not found for memberstack_id
+                    code: MEM_404_MEMBER_NOT_FOUND
+        '409':
+          description: Payment reference already applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                already_applied:
+                  summary: Payment already applied
+                  value:
+                    ok: false
+                    error: conflict
+                    message: payment_ref has already been applied to a package
+                    code: MEM_409_PAYMENT_ALREADY_APPLIED
+        '422':
+          description: Membership application validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                apply_failed:
+                  summary: Package apply failed
+                  value:
+                    ok: false
+                    error: validation_failed
+                    message: Package apply failed due to invalid payment state
+                    code: MEM_422_INVALID_PAYMENT_STATE
 
   /v1/guest/sweep:
     post:
-      tags: [Guest Lifecycle]
+      tags:
+        - Guest Lifecycle
       summary: Sweep Guest7 records for expiry and qualification
       operationId: sweepGuestLifecycle
       security:
@@ -117,6 +415,12 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GuestSweepRequest'
+            examples:
+              normal_sweep:
+                summary: Sweep Guest7 lifecycle
+                value:
+                  dry_run: false
+                  limit: 100
       responses:
         '200':
           description: Sweep complete
@@ -124,8 +428,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GuestSweepResponse'
+              examples:
+                sweep_done:
+                  summary: Sweep completed
+                  value:
+                    ok: true
+                    processed: 2
+                    results:
+                      - member_email: user1@example.com
+                        package_code: guest7
+                        previous_status: active
+                        next_status: expired
+                        total_spend_30d: 1000
+                        qualified: false
+                      - member_email: user2@example.com
+                        package_code: guest7
+                        previous_status: expired
+                        next_status: qualified
+                        total_spend_30d: 2500
+                        qualified: true
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                unauthorized:
+                  summary: Unauthorized request
+                  value:
+                    ok: false
+                    error: unauthorized
+                    message: Invalid or missing bearer token
+                    code: AUTH_401_INVALID_TOKEN
+        '422':
+          description: Invalid sweep parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_limit:
+                  summary: Invalid sweep limit
+                  value:
+                    ok: false
+                    error: validation_failed
+                    message: limit must be between 1 and 500
+                    code: GST_422_INVALID_LIMIT
 
 components:
   securitySchemes:
@@ -133,40 +482,45 @@ components:
       type: http
       scheme: bearer
 
-  responses:
-    BadRequest:
-      description: Invalid request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Unauthorized:
-      description: Unauthorized
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
   schemas:
     PackageCode:
       type: string
-      enum: [guest7, standard, premium, blackcard]
+      enum:
+        - guest7
+        - standard
+        - premium
+        - blackcard
 
     PaymentType:
       type: string
-      enum: [deposit, final, full, tips]
+      enum:
+        - deposit
+        - final
+        - full
+        - tips
 
     PaymentStatus:
       type: string
-      enum: [pending, paid, failed, cancelled]
+      enum:
+        - pending
+        - paid
+        - failed
+        - cancelled
 
     VerificationStatus:
       type: string
-      enum: [pending, verified, rejected]
+      enum:
+        - pending
+        - verified
+        - rejected
 
     GuestStatus:
       type: string
-      enum: [active, expired, qualified, closed]
+      enum:
+        - active
+        - expired
+        - qualified
+        - closed
 
     CreateSessionRequest:
       type: object
@@ -177,11 +531,14 @@ components:
       properties:
         memberstack_id:
           type: string
+          example: memstk_abc123
         member_email:
           type: string
           format: email
+          example: user@example.com
         client_name:
           type: string
+          example: Jay
         package_code:
           $ref: '#/components/schemas/PackageCode'
         membership_action:
@@ -193,12 +550,14 @@ components:
         payment_ref:
           type: string
           description: Optional at session-creation time; may be attached later
+          example: pay_01HXYZABC123
 
     CreateSessionResponse:
       type: object
       required:
         - ok
         - session_id
+        - status
       properties:
         ok:
           type: boolean
@@ -221,11 +580,14 @@ components:
       properties:
         session_id:
           type: string
+          example: sess_01HXYZABC123
         memberstack_id:
           type: string
+          example: memstk_abc123
         member_email:
           type: string
           format: email
+          example: user@example.com
         package_code:
           $ref: '#/components/schemas/PackageCode'
         amount_thb:
@@ -258,9 +620,11 @@ components:
         promptpay_url:
           type: string
           nullable: true
+          example: https://api.mmdbkk.com/pay/pay_01HXYZABC123
         qr_payload:
           type: string
           nullable: true
+          example: 000201010212...
 
     VerifyPaymentRequest:
       type: object
@@ -272,8 +636,10 @@ components:
       properties:
         session_id:
           type: string
+          example: sess_01HXYZABC123
         payment_ref:
           type: string
+          example: pay_01HXYZABC123
         payment_status:
           $ref: '#/components/schemas/PaymentStatus'
         verification_status:
@@ -283,11 +649,14 @@ components:
           example: promptpay
         provider_txn_id:
           type: string
+          example: txn_abc123
         paid_at:
           type: string
           format: date-time
+          example: '2026-03-25T10:00:00Z'
         amount_thb:
           type: number
+          example: 2000
         payment_type:
           $ref: '#/components/schemas/PaymentType'
         package_code:
@@ -305,6 +674,7 @@ components:
           example: true
         payment_ref:
           type: string
+          example: pay_01HXYZABC123
         verification_status:
           $ref: '#/components/schemas/VerificationStatus'
         next_action:
@@ -322,23 +692,29 @@ components:
       properties:
         memberstack_id:
           type: string
+          example: memstk_abc123
         member_email:
           type: string
           format: email
+          example: user@example.com
         package_code:
           $ref: '#/components/schemas/PackageCode'
         payment_ref:
           type: string
+          example: pay_01HXYZABC123
         paid_at:
           type: string
           format: date-time
+          example: '2026-03-25T10:00:00Z'
         source:
           type: string
           example: web
         amount_thb:
           type: number
+          example: 2000
         provider:
           type: string
+          example: promptpay
 
     ApplyMembershipResponse:
       type: object
@@ -358,9 +734,11 @@ components:
         start_date:
           type: string
           format: date
+          example: '2026-03-25'
         end_date:
           type: string
           format: date
+          example: '2026-04-01'
 
     GuestSweepRequest:
       type: object
@@ -368,9 +746,11 @@ components:
         dry_run:
           type: boolean
           default: false
+          example: false
         limit:
           type: integer
           default: 100
+          example: 100
 
     GuestSweepResultItem:
       type: object
@@ -378,6 +758,7 @@ components:
         member_email:
           type: string
           format: email
+          example: user@example.com
         package_code:
           type: string
           example: guest7
@@ -390,6 +771,7 @@ components:
           example: 1500
         qualified:
           type: boolean
+          example: false
 
     GuestSweepResponse:
       type: object
@@ -410,6 +792,10 @@ components:
 
     ErrorResponse:
       type: object
+      required:
+        - ok
+        - error
+        - message
       properties:
         ok:
           type: boolean
@@ -420,3 +806,9 @@ components:
         message:
           type: string
           example: Missing required field
+        code:
+          type: string
+          example: GEN_400_MISSING_FIELD
+        details:
+          type: object
+          additionalProperties: true
