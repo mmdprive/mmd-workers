@@ -1,4 +1,4 @@
-🖤 MMD Privé — Core System Architecture
+🖤 MMD Privé — Core System Architecture 
 Overview
 
 MMD Privé is a controlled access system, not a marketplace.
