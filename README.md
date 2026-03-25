@@ -1,164 +1,245 @@
-# MMD Platform
+🖤 MMD Privé — Core System Architecture
+Overview
 
-MMD is a channel-agnostic operating system with personality.
+MMD Privé is a controlled access system, not a marketplace.
 
-It is designed to control human experience through system, flow, character, and real-time coordination — not just through pages, bots, or manual operations.
+This system is designed to:
 
-## What MMD is
+manage private client access
+control experience through structured flows
+automate onboarding, payment, and lifecycle
+eliminate manual chat handling
+🎯 Core Flow
+User → /trust/inme → chat-worker → payments → admin → lifecycle
+🧠 Core Principles (LOCK)
+Airtable = Source of Truth
+session_id = primary flow key
+payment_ref = financial idempotency key
+package_code = access control logic
+Workers are strictly separated
+chat-worker = public interface
+telegram-worker = internal only
+Do NOT expose Airtable or secrets to frontend
+🏗️ System Architecture
+[ Web / Telegram / LINE ]
+            ↓
+        chat-worker (AI / intake)
+            ↓
+        payments-worker (money)
+            ↓
+        admin-worker (access control)
+            ↓
+        events-worker (automation)
+            ↓
+        telegram-worker (internal)
+🧩 Airtable — Source of Truth
+Table	Purpose
+Members	identity + summary
+member_packages	package lifecycle (PRIMARY LOGIC)
+Payments	financial truth
+Sessions	flow bridge
+Activity Logs	audit trail
+⚙️ Workers
+1. chat-worker (Public Entry)
 
-MMD is not a single product.
+Role
 
-It is an operating system that supports multiple layers at once:
+entry point from /trust/inme
+collect user intent
+create session
+route to payment
 
-- service operations
-- membership and access
-- character-driven interface
-- real-time session coordination
-- admin/operator control
-- migration from legacy flows into core production
+Writes → Sessions
 
-At the center of the platform is one principle:
+session_id
+memberstack_id
+package_code
+membership_action
+payment_ref
+created_at
+2. payments-worker (Money Layer)
 
-**System at the core. Character at the surface. Experience as the output.**
+Role
 
-## Core architecture
+create payment session
+verify payment (PromptPay)
+write Payments
+trigger admin-worker
 
-### Experience Layer
-This is the user-facing surface of MMD.
+Endpoints
 
-- `chat-worker`
-- TMIB character interface
-- web / LINE / Telegram / future channels
+POST /v1/pay/create
+{
+  "session_id": "sess_xxx",
+  "memberstack_id": "memstk_xxx",
+  "package_code": "guest7",
+  "amount_thb": 2000,
+  "payment_type": "full"
+}
+POST /v1/pay/verify
+{
+  "session_id": "sess_xxx",
+  "payment_ref": "pay_xxx",
+  "payment_status": "paid",
+  "verification_status": "verified",
+  "provider": "promptpay"
+}
 
-`chat-worker` is the public member-facing AI gateway and is explicitly separated from `telegram-worker`, which remains system/internal only :contentReference[oaicite:2]{index=2} :contentReference[oaicite:3]{index=3}
+Writes → Payments
 
-### Core Production Layer
-This is the business control engine.
+payment_ref
+payment_date
+amount_thb
+payment_status
+payment_type
+verification_status
+session_id
+package_code
+🔥 Payment Rule (LOCK)
 
-- `payments-worker`
-- `admin-worker`
-- `events-worker`
-- `telegram-worker`
+Only count toward Guest7 qualification if:
 
-The current lock registry defines these boundaries clearly:
-- `admin-worker` is the only holder of key admin secrets
-- `payments-worker` is payment / points only
-- `telegram-worker` is internal/system gateway only
-- `chat-worker` is the public AI concierge layer :contentReference[oaicite:4]{index=4}
+payment_status = paid
+payment_type IN (deposit, final, full)
+❌ NOT tips
+3. admin-worker (Access Control)
 
-### Real-time Layer
-This is the live interaction layer.
+Role
 
-- `realtime-worker`
+apply membership
+create package lifecycle
+update member state
+POST /v1/admin/membership/apply
+{
+  "memberstack_id": "memstk_xxx",
+  "member_email": "user@example.com",
+  "package_code": "guest7",
+  "payment_ref": "pay_xxx",
+  "paid_at": "ISO"
+}
 
-`realtime-worker` provides WebSocket rooms for chat/location and issues room tokens via internal endpoints; it also opens live URLs for customer/model session use :contentReference[oaicite:5]{index=5}
+Writes → member_packages
 
-### Migration Layer
-This is the bridge layer used to move data and workflows into the main system.
+package_code
+status = active
+start_at
+expires_at
+payment_ref
 
-- `immigrate-worker`
+Updates → Members
 
-Current architecture direction treats migration separately from core production contracts. In the latest code I could verify, `admin-worker` still contains controlled immigration bridge endpoints, which is why this separation must stay explicit :contentReference[oaicite:6]{index=6}
+current_package_code
+member_status
+membership_expiry
+4. events-worker (Automation)
 
-### Operator Layer
-This is the admin/operator control surface.
+Role
 
-- `Admin Console V1`
+lifecycle automation
+guest qualification
+expiry handling
+Daily Job
 
-`Admin Console V1` is the human-facing control surface for operating the platform, while `admin-worker` is the backend authority and orchestrator.
+Step 1 — Expiry
 
-## Worker roles
+IF now > expires_at
+→ status = expired
 
-### `chat-worker`
-Public-facing AI concierge and interface layer.
+Step 2 — Qualification
 
-Current verified code shows:
-- `GET /health`
-- `POST /v1/chat/message`
-- `POST /v1/chat/internal`
+sum(payments within 30 days)
 
-It is designed as the public/member-facing gateway, with internal relay support for system workers :contentReference[oaicite:7]{index=7}
+IF total >= 2000
+→ qualified
 
-### `payments-worker`
-Money truth and payment lifecycle.
+ELSE IF now > eval_ends_at
+→ closed
 
-Current verified code shows:
-- `GET /ping`
-- `POST /v1/pay/verify`
-- `POST /v1/payments/notify`
+Writes
 
-It locks `session_id` as the primary payment/session idempotency reference and enforces payment-stage logic across deposit/final/tips/membership flows :contentReference[oaicite:8]{index=8}
+member_packages (status)
+Members (summary update)
+Activity Logs (audit)
+5. telegram-worker (Internal Only)
 
-### `admin-worker`
-Admin API, core orchestrator, and controlled bridge.
+Role
 
-Current verified code explicitly describes:
-- core admin system routes
-- Airtable-writing authority
-- controlled immigration bridge endpoints
-- job creation that mints confirm links via `payments-worker` :contentReference[oaicite:9]{index=9}
+send internal notifications
+NOT user-facing
 
-### `events-worker`
-Job/session automation and dispatch timeline.
+Triggers
 
-Current verified code defines:
-- job create/get/event routes
-- canonical state machine
-- hard gate preventing `work_started` unless `final_payment_confirmed` exists
-- integration path to `realtime-worker` and `telegram-worker` :contentReference[oaicite:10]{index=10}
+payment verified
+guest7 activated
+guest7 expired
+guest7 qualified
+upgrade events
+🔁 End-to-End Flow
+Guest7 Entry
+User → /trust/inme
+→ chat-worker
+→ payments-worker
+→ verify payment
+→ admin-worker
+→ member_packages created
+→ events-worker handles lifecycle
+Upgrade Flow
+qualified guest
+→ new payment
+→ admin-worker apply standard/premium
+→ Members updated
+🧬 Package Model
+Package	Meaning
+guest7	temporary access (7 days + 30-day evaluation)
+standard	base access
+premium	higher access
+blackcard	elite
+🔥 IMPORTANT
+Standard / Premium = pricing + access level only
+NOT separate systems
+All flows go through same backend
+🧪 Guest7 Logic
+Rule	Value
+Access duration	7 days
+Evaluation window	30 days
+Spend requirement	2,000 THB
+Outcome
+Condition	Result
+spend ≥ 2000	qualified
+spend < 2000 after 30d	closed
+🔐 Locked Fields (DO NOT CHANGE)
+session_id
+payment_ref
+memberstack_id
+package_code
+payment_type
+payment_status
+verification_status
+amount_thb
+⚠️ Critical Rules
+Do NOT rename Airtable fields after production
+Do NOT expose Airtable to frontend
+session_id must flow across all workers
+payment_ref must be unique
+member_packages = lifecycle truth
+Payments = financial truth
+Members = summary only
+🚀 Phase 1 Scope
+MUST HAVE
+chat-worker session creation
+payments-worker create + verify
+admin-worker apply guest7
+Airtable integration working
+SHOULD HAVE
+telegram internal notify
+NEXT
+events-worker lifecycle automation
+💎 Final Note
 
-### `telegram-worker`
-Internal messaging gateway only.
+This system is not a typical CRUD app.
 
-The lock registry treats this worker as internal/system-only, not a public chatbot surface :contentReference[oaicite:11]{index=11}
+It is:
 
-### `realtime-worker`
-Live room infrastructure.
+Access Control Engine + Experience Engine
 
-Current verified code shows:
-- tokenized room open flow
-- WebSocket endpoint
-- allowlisted message types like `chat`, `location`, and `photo_meta`
-- live URLs generated from `WEB_BASE_URL` for customer/model usage :contentReference[oaicite:12]{index=12}
-
-## TMIB character layer
-
-MMD does not present itself as a neutral interface.
-
-The experience layer is character-driven. Users interact through TMIB characters, not through a generic system voice.
-
-This means MMD is not only worker-based infrastructure — it is also a personality-based interface model.
-
-## Hard production truths
-
-The latest verified locks include:
-
-- `session_id` is the primary idempotency/session reference
-- token parameter must be `t`
-- core worker boundaries must stay intact
-- Airtable wiring is treated as production contract
-- `/login` stays separated from server-side secret handling :contentReference[oaicite:13]{index=13}
-
-## Architecture summary
-
-```txt
-MMD Operating System
-
-Experience Layer
-- chat-worker
-- TMIB character interface
-
-Core Production Layer
-- payments-worker
-- admin-worker
-- events-worker
-- telegram-worker
-
-Real-time Layer
-- realtime-worker
-
-Migration Layer
-- immigrate-worker
-
-Operator Layer
-- Admin Console V1
+Build it as a controlled system, not a marketplace.
