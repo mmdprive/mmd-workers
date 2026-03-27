@@ -1,48 +1,111 @@
-# Internal Doctrine
+# Current MMD System Summary — Corrected Latest Architecture
 
-This document defines the internal doctrine of the MMD platform.
-
-It is not a marketing document. It is a control document.
-
-## 1. What MMD is
+## Definition
 
 MMD is a channel-agnostic operating system with personality.
 
-It is built to replace human improvisation with controlled system behavior.
+It is not just a booking flow, a chatbot, or a single product. It is a structured system that separates interface, business control, real-time coordination, migration, and operator control into distinct layers.
 
-## 2. Core philosophy
+Core principle:
 
 **System at the core. Character at the surface. Experience as the output.**
 
-This means:
-- infrastructure is the truth
-- character is the interface
-- experience is designed, not accidental
+## Layer map
 
-## 3. What the system must never become
+### 1. Experience Layer
+User-facing surface of the system.
 
-MMD must not degrade into:
-- a loose collection of bots
-- channel-specific chaos
-- manual operations disguised as software
-- UI-first decisions that break architectural truth
+Includes:
+- `chat-worker`
+- TMIB character interface
+- web / LINE / Telegram / future channels
 
-## 4. Operational truths
+This layer is where users interact with MMD through character-led guidance rather than a generic software voice.
 
-The following truths are treated as structural:
+### 2. Core Production Layer
+Business control engine.
 
-- `session_id` is the primary operational reference
-- `t` is the canonical token parameter
-- Airtable is the back-office truth layer
-- Memberstack is the public-facing auth and membership layer
-- worker boundaries are part of the production contract
-- migration stays separate from core production
+Includes:
+- `payments-worker`
+- `admin-worker`
+- `events-worker`
+- `telegram-worker`
 
-## 5. Character doctrine
+This layer owns the platform's operational truth, payment flow, admin authority, session automation, and internal system messaging.
 
-MMD does not speak in one neutral voice.
+### 3. Real-time Layer
+Live session interaction layer.
 
-It presents itself through TMIB characters:
+Includes:
+- `realtime-worker`
+
+This layer supports live coordination and real-time interactions during active flows.
+
+### 4. Migration Layer
+Bridge layer for moving into the main system.
+
+Includes:
+- `immigrate-worker`
+
+This layer exists for migration and must remain conceptually separate from core production contracts.
+
+### 5. Operator Layer
+Human control surface.
+
+Includes:
+- `Admin Console V1`
+
+This is the operator-facing interface used to run and control the platform at an administrative level.
+
+## Worker summary
+
+### `chat-worker`
+- public AI concierge
+- TMIB character interface layer
+- entry point for user-facing interaction
+- not a single neutral assistant
+
+### `payments-worker`
+- payment verification
+- payment lifecycle control
+- proof/slip handling
+- payment-session linkage
+- money truth
+
+### `admin-worker`
+- backend authority
+- membership and access control
+- operational orchestration
+- admin-facing system actions
+
+### `events-worker`
+- session/job automation
+- reminder and movement states
+- arrival/work/review/payout sequencing
+- timeline control
+
+### `telegram-worker`
+- internal system messaging gateway
+- not a public chatbot layer
+- used for internal notification and routing
+
+### `realtime-worker`
+- real-time session infrastructure
+- live interaction support
+- room/session coordination layer
+
+### `immigrate-worker`
+- migration-only worker
+- data/workflow movement into the main system
+- not part of core production logic
+
+## Character layer
+
+MMD is not just worker-based infrastructure.
+
+Its public interface is character-driven. Users do not simply interact with a generic system; they interact through TMIB characters.
+
+Current TMIB interface set:
 - Hito
 - Hiro
 - Hima
@@ -50,38 +113,44 @@ It presents itself through TMIB characters:
 - Kenji
 - Tart
 
-Character is not decoration.
-Character is the interface layer of the system.
+This makes the interface layer part of the architecture itself, not merely a branding treatment.
 
-## 6. Layer doctrine
+## Core production truths
 
-### Experience Layer
-Where the user feels the system.
+Current system assumptions:
 
-### Core Production Layer
-Where the business truth is controlled.
+- `session_id` is the primary session/idempotency reference
+- token parameter is `t`
+- Airtable is the source of truth for back-office operations
+- Memberstack is the public auth/membership layer
+- worker boundaries must remain intact
+- migration logic must not be treated as core production by default
 
-### Real-time Layer
-Where live interaction is coordinated.
+## Corrected architectural map
 
-### Migration Layer
-Where legacy is moved without corrupting core truth.
+```txt
+MMD Operating System
 
-### Operator Layer
-Where humans supervise and operate the system.
+Experience Layer
+- chat-worker
+- TMIB character interface
 
-## 7. Boundary doctrine
+Core Production Layer
+- payments-worker
+- admin-worker
+- events-worker
+- telegram-worker
 
-A worker boundary is not a preference.
-It is part of the system contract.
+Real-time Layer
+- realtime-worker
 
-If boundaries collapse:
-- truth becomes ambiguous
-- ownership becomes unclear
-- behavior becomes chaotic
+Migration Layer
+- immigrate-worker
 
-## 8. Final statement
+Operator Layer
+- Admin Console V1
+```
 
-MMD is not just software.
+## One-line official summary
 
-It is a controlled operating system for human experience — expressed through character, enforced through architecture, and maintained through discipline.
+MMD is a channel-agnostic operating system with personality — expressed through TMIB characters, powered by core production workers, extended by a real-time layer, supported by a migration layer, and operated through Admin Console V1.

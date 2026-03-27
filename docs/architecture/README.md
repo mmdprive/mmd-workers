@@ -1,41 +1,18 @@
 # Architecture Docs
 
-This folder documents the current MMD system architecture.
+This folder contains the current architecture baseline for `mmd-workers`.
 
 ## Files
 
-- [`SYSTEM_OVERVIEW.md`](./SYSTEM_OVERVIEW.md)
-  High-level summary of the MMD platform, architectural layers, and current system definition.
+- `SYSTEM_OVERVIEW.md` — current corrected view of the MMD system
+- `WORKERS.md` — worker roles, ownership, and boundaries
+- `REALTIME.md` — real-time layer and live coordination
+- `STATE_MACHINE.md` — canonical session flow and transition rules
+- `CHARACTERS.md` — TMIB character layer as interface
+- `LAYERS.md` — architecture layer model
+- `PRINCIPLES.md` — system design principles
+- `INTERNAL_DOCTRINE.md` — internal doctrine for decision-making
 
-- [`WORKERS.md`](./WORKERS.md)
-  Canonical worker list, responsibilities, and layer separation.
+## Guiding principle
 
-- [`INTERNAL_DOCTRINE.md`](./INTERNAL_DOCTRINE.md)
-  Internal principles, hard truths, and system philosophy used to guide implementation and decision-making.
-
-## Current layer map
-
-### Experience Layer
-- `chat-worker`
-- TMIB character interface
-
-### Core Production Layer
-- `payments-worker`
-- `admin-worker`
-- `events-worker`
-- `telegram-worker`
-
-### Real-time Layer
-- `realtime-worker`
-
-### Migration Layer
-- `immigrate-worker`
-
-### Operator Layer
-- `Admin Console V1`
-
-## Reading order
-
-1. Start with `SYSTEM_OVERVIEW.md`
-2. Continue to `WORKERS.md`
-3. Use `INTERNAL_DOCTRINE.md` for principles and constraints
+**System at the core. Character at the surface. Experience as the output.**
