@@ -1,10 +1,11 @@
 export interface Env {
   INTERNAL_TOKEN: string;
-  OPENAI_API_KEY?: string;
-  ADMIN_WORKER_BASE_URL?: string;
+  AIRTABLE_API_KEY: string;
+  AIRTABLE_BASE_ID: string;
+  AIRTABLE_TABLE_MODELS: string;
+  AIRTABLE_TABLE_DEALS: string;
 }
 
-export type ClientTier = "standard" | "premium" | "vip" | "svip" | "blackcard";
 export type ModelTier = "standard" | "premium" | "vip" | "gws" | "ems";
 export type OrientationLabel = "straight" | "gay";
 export type AvailabilityStatus =
@@ -14,6 +15,23 @@ export type AvailabilityStatus =
   | "working"
   | "off-duty"
   | "vacation";
+
+export type ClientTier = "standard" | "premium" | "vip" | "svip" | "blackcard";
+export type Channel = "web" | "line" | "telegram" | "internal";
+export type DealStatus =
+  | "new_inquiry"
+  | "ai_processing"
+  | "needs_per_review"
+  | "awaiting_client_reply"
+  | "awaiting_payment"
+  | "payment_received"
+  | "ready_to_offer_model"
+  | "offer_sent_to_model"
+  | "model_accepted"
+  | "confirmed"
+  | "expired"
+  | "declined"
+  | "cancelled";
 
 export interface ErrorBody {
   ok: false;
@@ -25,45 +43,8 @@ export interface ErrorBody {
 
 export interface HealthResponse {
   ok: true;
-  service: "ai-worker";
+  service: "admin-worker";
   version: string;
-}
-
-export interface ClientContext {
-  tier?: ClientTier;
-  history_signal?: "none" | "low" | "medium" | "high";
-  budget_signal?: "low" | "standard" | "premium" | "high";
-  selection_mode?: "mmd_suggestion" | "self_select";
-}
-
-export interface ExtractPreferencesRequest {
-  text: string;
-  channel?: "web" | "line" | "telegram" | "internal";
-  client?: ClientContext;
-}
-
-export interface ExtractedPreferences {
-  occasion?: string;
-  time_label?: string;
-  venue_name?: string;
-  location_area?: string;
-  appearance_tags: string[];
-  vibe_tags: string[];
-  languages: string[];
-  budget_signal?: "low" | "standard" | "premium" | "high";
-  budget_amount_thb?: number;
-}
-
-export interface ExtractPreferencesResponse {
-  ok: true;
-  intent: "booking_inquiry" | "pricing_inquiry" | "support" | "general";
-  preferences: ExtractedPreferences;
-  flags: {
-    high_value_client: boolean;
-    ask_per_before_high_tier: boolean;
-    specific_model_requested: boolean;
-  };
-  missing_fields: string[];
 }
 
 export interface ModelCardLite {
@@ -77,76 +58,67 @@ export interface ModelCardLite {
   best_for: string[];
   languages: string[];
   available_now: boolean;
-  availability_status?: AvailabilityStatus;
+  availability_status?: AvailabilityStatus | string;
   minimum_rate_90m: number;
   ai_match_summary?: string;
   requires_per_approval: boolean;
 }
 
-export interface ClientRequestLite {
-  occasion?: string;
-  time_label?: string;
-  venue_name?: string;
-  location_area?: string;
-  preferences: {
-    appearance_tags?: string[];
-    vibe_tags?: string[];
-    languages?: string[];
-  };
-}
-
-export interface MatchConstraints {
-  require_available_now?: boolean;
-  respect_minimum_rate?: boolean;
-  max_results?: number;
-  budget_amount_thb?: number;
-}
-
-export interface MatchRequest {
-  client?: ClientContext;
-  request: ClientRequestLite;
-  constraints?: MatchConstraints;
+export interface ModelsListLiteResponse {
+  ok: true;
   models: ModelCardLite[];
+  count: number;
 }
 
-export interface MatchResult {
-  working_name: string;
-  score: number;
-  reason: string[];
-  requires_per_approval: boolean;
+export interface DealLite {
+  deal_id: string;
+  client_id?: string;
+  client_name: string;
+  channel: Channel;
+  client_tier: ClientTier;
+  occasion?: string;
+  timing_label?: string;
+  venue_name?: string;
+  budget_amount_thb?: number;
+  budget_signal?: "low" | "standard" | "premium" | "high";
+  history_signal?: "none" | "low" | "medium" | "high";
+  high_value_client?: boolean;
+  specific_model_requested?: boolean;
+  ai_top_model?: string;
+  ai_reply_draft?: string;
+  ai_requires_per_review?: boolean;
+  deal_status: DealStatus;
+  urgency_level?: "low" | "normal" | "high" | "fast_lane";
 }
 
-export interface MatchResponse {
+export interface DealsListLiteResponse {
   ok: true;
-  matches: MatchResult[];
-  flags: {
-    high_value_client: boolean;
-    ask_per_before_high_tier: boolean;
-    any_requires_per_approval: boolean;
-  };
-  policy: {
-    presentation_count: number;
-    presentation_mode: "standard_curated" | "premium_curated" | "vip_curated";
-  };
+  deals: DealLite[];
+  count: number;
 }
 
-export interface ReplyRequest {
-  client?: ClientContext;
-  request: {
-    occasion?: string;
-    time_label?: string;
-    venue_name?: string;
-  };
-  matches: MatchResult[];
-  flags?: {
-    ask_per_before_high_tier?: boolean;
-  };
-  reply_mode?: "client-facing" | "internal";
+export interface UpsertAiRequest {
+  deal_id: string;
+  request_summary_ai?: string;
+  occasion?: string;
+  timing_label?: string;
+  venue_name?: string;
+  budget_amount_thb?: number;
+  budget_signal?: "low" | "standard" | "premium" | "high";
+  history_signal?: "none" | "low" | "medium" | "high";
+  high_value_client?: boolean;
+  specific_model_requested?: boolean;
+  ai_top_model?: string;
+  ai_reply_draft?: string;
+  ai_requires_per_review?: boolean;
+  deal_status?: DealStatus;
+  urgency_level?: "low" | "normal" | "high" | "fast_lane";
 }
 
-export interface ReplyResponse {
+export interface UpsertAiResponse {
   ok: true;
-  reply_text: string;
-  tone: "luxury_concierge";
-  requires_human_review: boolean;
+  deal_id: string;
+  updated: boolean;
+  created?: boolean;
+  airtable_record_id?: string;
 }

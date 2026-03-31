@@ -9,9 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "axios": "^1.13.6",
-    "csv-parser": "^3.2.0",
-    "fs": "^0.0.1-security",
     "next": "15.2.0",
     "react": "19.0.0",
     "react-dom": "19.0.0"
@@ -24,14 +21,5 @@
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.2"
-  },
-  "description": "Next.js + Tailwind skeleton for MMD Privé Admin Console / Deal Control Panel.",
-  "main": "postcss.config.js",
-  "directories": {
-    "lib": "lib"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs"
+  }
 }

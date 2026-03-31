@@ -1,48 +1,68 @@
-import { findDealById, mockDashboardSummary, mockDeals } from "./mock";
-import type { DashboardSummary, Deal } from "./types";
+import type { Deal } from "./types";
 
-export async function getDashboardSummary(): Promise<DashboardSummary> {
-  return mockDashboardSummary;
+// ⚠️ public base URL ใช้ได้
+const ADMIN_API_BASE =
+  process.env.NEXT_PUBLIC_ADMIN_API_BASE || "http://localhost:8787";
+
+// 🔐 server-only token (ห้ามมี NEXT_PUBLIC อีกต่อไป)
+const ADMIN_INTERNAL_TOKEN =
+  process.env.AUTH_ADMIN_CONSOLE_TOKEN || "";
+
+function authHeaders(): HeadersInit {
+  if (!ADMIN_INTERNAL_TOKEN) {
+    throw new Error("Missing AUTH_ADMIN_CONSOLE_TOKEN");
+  }
+
+  return {
+    Authorization: `Bearer ${ADMIN_INTERNAL_TOKEN}`,
+  };
 }
 
 export async function getDeals(
   params?: Record<string, string | undefined>,
 ): Promise<{ ok: true; deals: Deal[] }> {
-  let deals = [...mockDeals];
+  const url = new URL(`${ADMIN_API_BASE}/v1/admin/deals/list-lite`);
 
-  if (params?.tier) {
-    deals = deals.filter((deal) => deal.client_tier === params.tier);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value) url.searchParams.set(key, value);
+  });
+
+  const res = await fetch(url.toString(), {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to fetch deals: ${res.status} ${text}`);
   }
 
-  if (params?.urgency) {
-    deals = deals.filter((deal) => deal.urgency_level === params.urgency);
-  }
-
-  if (params?.tab === "needs-per") {
-    deals = deals.filter((deal) => deal.deal_status === "needs_per_review");
-  }
-
-  if (params?.tab === "ready") {
-    deals = deals.filter((deal) => deal.deal_status === "ready_to_offer_model");
-  }
-
-  if (params?.tab === "waiting") {
-    deals = deals.filter((deal) =>
-      ["awaiting_client_reply", "awaiting_payment", "offer_sent_to_model"].includes(deal.deal_status),
-    );
-  }
-
-  if (params?.tab === "closed") {
-    deals = deals.filter((deal) =>
-      ["confirmed", "expired", "declined", "cancelled"].includes(deal.deal_status),
-    );
-  }
-
-  return { ok: true, deals };
+  return (await res.json()) as { ok: true; deals: Deal[] };
 }
 
 export async function getDealById(dealId: string): Promise<Deal> {
-  const deal = findDealById(dealId);
-  if (!deal) throw new Error("Deal not found");
+  const data = await getDeals();
+  const deal = data.deals.find((d) => d.deal_id === dealId);
+
+  if (!deal) {
+    throw new Error(`Deal not found: ${dealId}`);
+  }
+
   return deal;
+}
+
+export async function getDashboardSummary(): Promise<{
+  open_deals: number;
+  needs_per: number;
+  pending_payments: number;
+  active_models: number;
+}> {
+  const data = await getDeals();
+
+  return {
+    open_deals: data.deals.length,
+    needs_per: data.deals.filter((d) => d.deal_status === "needs_per_review").length,
+    pending_payments: data.deals.filter((d) => d.deal_status === "awaiting_payment").length,
+    active_models: 0,
+  };
 }

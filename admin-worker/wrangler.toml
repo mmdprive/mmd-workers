@@ -1,38 +1,61 @@
 name = "admin-worker"
-main = "index.js"
+main = "src/index.ts"
 compatibility_date = "2026-03-19"
+workers_dev = true
 
 [vars]
-ALLOWED_ORIGINS = "https://mmdprive.com,https://mmdprive.webflow.io"
-
 AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
-
-POINTS_RATE = "100"
-
-AIRTABLE_TABLE_SESSIONS = "Sessions"
-AIRTABLE_TABLE_PAYMENTS = "payments"
+AIRTABLE_TABLE_MODELS = "Models"
+AIRTABLE_TABLE_MEMBERS = "Members"
+AIRTABLE_TABLE_DEALS = "Deals"
+AIRTABLE_TABLE_CLIENTS = "Clients"
+AIRTABLE_TABLE_SESSIONS = "tblC98mKWbzmPuNzX"
+AIRTABLE_TABLE_PAYMENTS = "tblWGGJJOx5eBvBZJ"
+AIRTABLE_TABLE_ACTIVITY_LOGS = "Activity Logs"
 AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
+# AIRTABLE_TABLE_MEMBER_NOTES = "Member Notes"
+# JOBS_WORKER_BASE_URL = ""
+# CREATE_LINKS_URL = ""
 
-AIRTABLE_TABLE_CLIENTS_ID = "tblVv58TCbwh5j1fS"
-AIRTABLE_CLIENT_NAME_FIELD = "Client Name"
+# Optional: override these if your Airtable deal field names differ
+# AIRTABLE_DEALS_FIELD_DEAL_ID = "deal_id"
+# AIRTABLE_DEALS_FIELD_CLIENT_ID = "client_id"
+# AIRTABLE_DEALS_FIELD_CLIENT_NAME = "client_name"
+# AIRTABLE_DEALS_FIELD_CHANNEL = "channel"
+# AIRTABLE_DEALS_FIELD_CLIENT_TIER = "client_tier"
+# AIRTABLE_DEALS_FIELD_REQUEST_SUMMARY_AI = "request_summary_ai"
+# AIRTABLE_DEALS_FIELD_OCCASION = "occasion"
+# AIRTABLE_DEALS_FIELD_TIMING_LABEL = "timing_label"
+# AIRTABLE_DEALS_FIELD_VENUE_NAME = "venue_name"
+# AIRTABLE_DEALS_FIELD_BUDGET_AMOUNT_THB = "budget_amount_thb"
+# AIRTABLE_DEALS_FIELD_BUDGET_SIGNAL = "budget_signal"
+# AIRTABLE_DEALS_FIELD_HISTORY_SIGNAL = "history_signal"
+# AIRTABLE_DEALS_FIELD_HIGH_VALUE_CLIENT = "high_value_client"
+# AIRTABLE_DEALS_FIELD_SPECIFIC_MODEL_REQUESTED = "specific_model_requested"
+# AIRTABLE_DEALS_FIELD_AI_TOP_MODEL = "ai_top_model"
+# AIRTABLE_DEALS_FIELD_AI_REPLY_DRAFT = "ai_reply_draft"
+# AIRTABLE_DEALS_FIELD_AI_REQUIRES_PER_REVIEW = "ai_requires_per_review"
+# AIRTABLE_DEALS_FIELD_DEAL_STATUS = "deal_status"
+# AIRTABLE_DEALS_FIELD_URGENCY_LEVEL = "urgency_level"
 
-AIRTABLE_TABLE_MODELS_ID = "tblcatsmzAT5nKqIn"
-AIRTABLE_MODEL_NAME_FIELD = "Model Name"
+# Set via secrets:
+# wrangler secret put INTERNAL_TOKEN
+# wrangler secret put AIRTABLE_API_KEY
+# wrangler secret put ADMIN_BEARER
+# wrangler secret put CONFIRM_KEY
 
-AT_SESSIONS__SESSION_ID = "session_id"
-AT_SESSIONS__MEMBERSTACK_ID = "memberstack_id"
-AT_SESSIONS__STATUS = "status"
-AT_SESSIONS__PAYMENT_STATUS = "payment_status"
-AT_SESSIONS__PAYMENT_REF = "payment_ref"
-AT_SESSIONS__PACKAGE_CODE = "package_code"
-AT_SESSIONS__AMOUNT_THB = "amount_thb"
+[[routes]]
+pattern = "mmdbkk.com/v1/admin*"
+zone_name = "mmdbkk.com"
 
-AT_PAYMENTS__PAYMENT_REF = "payment_ref"
-AT_PAYMENTS__AMOUNT = "amount_thb"
-AT_PAYMENTS__PAYMENT_STATUS = "payment_status"
-AT_PAYMENTS__PAYMENT_METHOD = "payment_method"
-AT_PAYMENTS__PAYMENT_DATE = "paid_at"
-AT_PAYMENTS__CREATED_AT = "created_at"
-AT_PAYMENTS__PACKAGE_CODE = "package_code"
-AT_PAYMENTS__SESSION_ID = "session_id"
-AT_PAYMENTS__VERIFICATION_STATUS = "verification_status"
+[[routes]]
+pattern = "www.mmdbkk.com/v1/admin*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/internal/admin/console*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/admin/console*"
+zone_name = "mmdbkk.com"

@@ -1,5 +1,5 @@
 // src/index.js
-import { buildSummary } from "./summary";
+import { buildSummary } from "./summary.js";
 
 export default {
   async fetch(req, env) {

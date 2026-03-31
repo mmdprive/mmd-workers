@@ -1,19 +1,30 @@
-# ai-worker
+# Legacy Note
 
-Lean Cloudflare Worker skeleton for MMD Concierge AI.
+This folder is part of `admin-worker`, but it is no longer the home of MMD AI decision logic.
 
-## Routes
-- GET /v1/ai/health
-- POST /v1/ai/extract-preferences
-- POST /v1/ai/match
-- POST /v1/ai/reply
+## Canonical AI source
 
-## Setup
-1. Install deps
-2. Set secret: `wrangler secret put INTERNAL_TOKEN`
-3. Run: `npm run dev`
+The canonical AI worker now lives in:
 
-## Notes
-- Rule-based v1
-- Designed to be called by chat-worker/admin-worker
-- Does not access Airtable directly in v1
+- [`/Users/Hiright_1/Desktop/MMDMaleModel/MMDPrive/mmd-workers/ai-worker`](/Users/Hiright_1/Desktop/MMDMaleModel/MMDPrive/mmd-workers/ai-worker)
+
+Its canonical v1 endpoints are:
+
+- `GET /v1/ai/health`
+- `POST /v1/ai/extract-preferences`
+- `POST /v1/ai/match`
+- `POST /v1/ai/reply`
+
+Compatibility aliases also exist there:
+
+- `POST /v1/ai/intent`
+- `POST /v1/ai/dispatch`
+- `POST /v1/ai/respond`
+
+## Boundary
+
+- `ai-worker` owns AI extraction, matching, and reply drafting
+- `chat-worker` owns orchestration and client-facing flow
+- `admin-worker` owns model data and deal persistence
+
+If you need to change AI behavior, update `ai-worker`, not this folder.

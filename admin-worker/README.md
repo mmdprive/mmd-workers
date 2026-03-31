@@ -1,43 +1,82 @@
-# admin-worker-models-list-lite-example
+# MMD Platform
 
-Example Cloudflare Worker project exposing:
+Worker packages in this repo now live under `workers/`.
 
-- `GET /v1/admin/health`
-- `GET /v1/admin/models/list-lite`
+MMD is a channel-agnostic operating system with personality.
 
-This worker reads the `Models` Airtable table and returns only the lean fields needed by `ai-worker` and `chat-worker`.
+It is designed to control human experience through system, flow, character, real-time coordination, and operator control — not just through pages, bots, or manual operations.
 
-## Required Airtable fields in `Models`
+## What MMD is
 
-- working_name
-- model_tier
-- orientation_label
-- height_cm
-- body_type
-- base_area
-- vibe_tags
-- best_for
-- languages
-- available_now
-- availability_status
-- minimum_rate_90m
-- ai_match_summary
-- requires_per_approval
+MMD is not a single product.
 
-## Secrets / Vars
+It is an operating system that supports multiple layers at once:
 
-```bash
-wrangler secret put INTERNAL_TOKEN
-wrangler secret put AIRTABLE_API_KEY
-```
+- service operations
+- membership and access
+- TMIB character-driven interface
+- real-time session coordination
+- admin/operator control
+- migration from legacy flows into core production
 
-Set these in `wrangler.toml` or dashboard:
-- `AIRTABLE_BASE_ID`
-- `AIRTABLE_TABLE_MODELS`
+At the center of the platform is one principle:
 
-## Example
+**System at the core. Character at the surface. Experience as the output.**
 
-```bash
-curl -X GET http://127.0.0.1:8787/v1/admin/models/list-lite \
-  -H "Authorization: Bearer YOUR_INTERNAL_TOKEN"
-```
+## Repository guide
+
+This repository structure is documented through the files below:
+
+- [`docs/architecture/README.md`](docs/architecture/README.md) — architecture docs index
+- [`docs/architecture/SYSTEM_OVERVIEW.md`](docs/architecture/SYSTEM_OVERVIEW.md) — platform summary and layer map
+- [`docs/architecture/WORKERS.md`](docs/architecture/WORKERS.md) — worker roles and boundaries
+- [`docs/architecture/INTERNAL_DOCTRINE.md`](docs/architecture/INTERNAL_DOCTRINE.md) — internal principles and rules
+
+## Current architecture
+
+### Experience Layer
+- `chat-worker`
+- TMIB character interface
+- web / LINE / Telegram / future channels
+
+### Core Production Layer
+- `payments-worker`
+- `admin-worker`
+- `events-worker`
+- `telegram-worker`
+
+### Real-time Layer
+- `realtime-worker`
+
+### Migration Layer
+- `immigrate-worker`
+
+### Operator Layer
+- `Admin Console V1`
+
+## Character layer
+
+MMD does not present itself as a neutral interface.
+
+The experience layer is character-driven. Users interact through TMIB characters, not through a generic system voice.
+
+Core TMIB interface characters:
+- Hito
+- Hiro
+- Hima
+- Hiei
+- Kenji
+- Tart
+
+## Hard truths
+
+- `session_id` is the primary session / idempotency reference
+- canonical token parameter is `t`
+- Airtable is the back-office source of truth
+- Memberstack is the public auth / membership layer
+- `telegram-worker` is internal only
+- migration must stay separate from core production
+
+## One-line definition
+
+**MMD is a channel-agnostic operating system with personality — expressed through TMIB characters, powered by core production workers, extended by a real-time layer, supported by a migration layer, and operated through Admin Console V1.**
