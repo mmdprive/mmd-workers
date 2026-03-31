@@ -2,7 +2,7 @@
 
 Use this repo workspace as the current source of truth for the admin surfaces.
 
-- Local path: `/Users/Hiright_1/Desktop/MMDMaleModel/MMDPrive/mmd-workers 2`
+- Local path: `/Users/Hiright_1/Desktop/MMDMaleModel/MMDPrive/mmd-workers`
 - Git branch: `codex/publish-ready-20260331`
 - Current commit: `9458c3d`
 
