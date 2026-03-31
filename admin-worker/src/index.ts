@@ -26,6 +26,7 @@ import {
 type AdminEnv = Env & Record<string, unknown>;
 
 const AIRTABLE_API = "https://api.airtable.com/v0";
+const ADMIN_JOBS_ROOT = "/internal/admin/jobs";
 const CONTROL_ROOM = {
   login: "/internal/admin/login",
   loginSession: "/internal/admin/login/session",
@@ -538,10 +539,23 @@ function isAdminConsoleRoute(pathname: string): boolean {
   return pathname === "/internal/admin/console" || pathname.startsWith("/internal/admin/console/");
 }
 
+function isAdminJobsRoute(pathname: string): boolean {
+  return pathname === ADMIN_JOBS_ROOT || pathname.startsWith(`${ADMIN_JOBS_ROOT}/`);
+}
+
+function mapAdminJobsPath(pathname: string): string {
+  if (pathname === `${ADMIN_JOBS_ROOT}/create-session`) return "/internal/jobs/create-links";
+  if (pathname === ADMIN_JOBS_ROOT) return "/internal/jobs";
+  if (pathname.startsWith(`${ADMIN_JOBS_ROOT}/`)) {
+    return `/internal/jobs${pathname.slice(ADMIN_JOBS_ROOT.length)}`;
+  }
+  return pathname;
+}
+
 function isProtectedBrowserRoute(pathname: string): boolean {
   if (pathname === CONTROL_ROOM.login || pathname === CONTROL_ROOM.loginSession) return false;
   if (isControlRoomApiRoute(pathname)) return false;
-  return isControlRoomBrowserRoute(pathname) || isAdminConsoleRoute(pathname);
+  return isControlRoomBrowserRoute(pathname) || isAdminConsoleRoute(pathname) || isAdminJobsRoute(pathname);
 }
 
 function makeLoginRedirect(request: Request, pathname: string): Response {
@@ -851,7 +865,8 @@ async function proxyControlRoomRequest(
   session: AdminGateSession | null,
 ): Promise<Response> {
   const url = new URL(request.url);
-  const upstreamUrl = `${controlRoomUpstreamBase(env)}${url.pathname}${url.search}`;
+  const upstreamPath = mapAdminJobsPath(url.pathname);
+  const upstreamUrl = `${controlRoomUpstreamBase(env)}${upstreamPath}${url.search}`;
   const headers = new Headers(request.headers);
   headers.delete("cookie");
   headers.delete("host");
@@ -1821,6 +1836,10 @@ export default {
 
         if (isAdminConsoleRoute(url.pathname)) {
           return renderAdminConsolePage(request);
+        }
+
+        if (isAdminJobsRoute(url.pathname)) {
+          return await proxyControlRoomRequest(request, adminEnv, gateSession);
         }
 
         const upstream = await fetch(request);
