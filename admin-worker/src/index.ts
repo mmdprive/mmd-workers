@@ -2162,6 +2162,12 @@ export default {
         return jsonWithCors(request, body);
       }
 
+      if ((method === "GET" || method === "HEAD") && url.pathname === "/internal/admin") {
+        const loginUrl = new URL(CONTROL_ROOM.login, url.origin);
+        loginUrl.searchParams.set("next", "/internal/admin/console");
+        return Response.redirect(loginUrl.toString(), 302);
+      }
+
       if ((method === "GET" || method === "HEAD") && url.pathname === CONTROL_ROOM.login) {
         return renderAdminLoginPage(request);
       }
