@@ -14,6 +14,15 @@ AIRTABLE_TABLE_PAYMENTS = "tblWGGJJOx5eBvBZJ"
 AIRTABLE_TABLE_ACTIVITY_LOGS = "Activity Logs"
 AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
 IMMIGRATE_WORKER_BASE_URL = "https://immigrate-worker.malemodel-bkk.workers.dev"
+PUBLIC_WEB_BASE_URL = "https://mmdbkk.com"
+MODEL_DASHBOARD_URL = "https://mmdbkk.com/model/dashboard"
+AIRTABLE_SESSION_FIELD_SESSION_ID = "fldLTq2kZbyRv22IA"
+AIRTABLE_SESSION_FIELD_STATUS = "fldHAlxnRfpKucnNV"
+AIRTABLE_SESSION_FIELD_MODEL_ACK_AT = "fldFgkHXivIAThfDz"
+AIRTABLE_SESSION_FIELD_CONFIRMATION_NOTES = "fldfn26Oi9Gh6nU7L"
+AIRTABLE_SESSION_STATUS_MODEL_CONFIRMED = "verified"
+AIRTABLE_SESSION_STATUS_MODEL_ATTENTION_NEEDED = "notified"
+AIRTABLE_SESSION_STATUS_MODEL_DECLINED = "rejected"
 # AIRTABLE_TABLE_MEMBER_NOTES = "Member Notes"
 # JOBS_WORKER_BASE_URL = ""
 # CREATE_LINKS_URL = ""
@@ -44,6 +53,12 @@ IMMIGRATE_WORKER_BASE_URL = "https://immigrate-worker.malemodel-bkk.workers.dev"
 # wrangler secret put AIRTABLE_API_KEY
 # wrangler secret put ADMIN_BEARER
 # wrangler secret put CONFIRM_KEY
+# wrangler secret put TELEGRAM_BOT_TOKEN
+# wrangler secret put TELEGRAM_CHAT_ID
+
+[[kv_namespaces]]
+binding = "MODEL_JOB_LINKS"
+id = "ee608f68b3724147a95a24ee764d68db"
 
 [[routes]]
 pattern = "mmdbkk.com/v1/admin*"
@@ -51,6 +66,14 @@ zone_name = "mmdbkk.com"
 
 [[routes]]
 pattern = "www.mmdbkk.com/v1/admin*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/v1/model/job*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/v1/model/job*"
 zone_name = "mmdbkk.com"
 
 [[routes]]
@@ -75,4 +98,12 @@ zone_name = "mmdbkk.com"
 
 [[routes]]
 pattern = "www.mmdbkk.com/internal/admin/control-room*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/internal/admin/jobs*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/admin/jobs*"
 zone_name = "mmdbkk.com"
