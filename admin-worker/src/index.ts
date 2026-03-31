@@ -1330,6 +1330,350 @@ function renderAdminConsolePage(request: Request): Response {
   });
 }
 
+function renderAdminCreateSessionPage(request: Request): Response {
+  const url = new URL(request.url);
+  const next = `${ADMIN_JOBS_ROOT}/create-session${url.search}`;
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Create Session</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #08070a;
+        --panel: rgba(19,15,24,.86);
+        --panel-2: rgba(15,12,18,.72);
+        --line: rgba(247,240,232,.14);
+        --text: #f7f0e8;
+        --muted: #c4b3a7;
+        --gold: #d1a66a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top, rgba(164,91,91,.18), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(95,127,132,.12), transparent 30%),
+          linear-gradient(180deg, #110d14 0%, #09080d 52%, #060507 100%);
+        font-family: Baskerville, "Iowan Old Style", Palatino, Georgia, serif;
+      }
+      .shell {
+        width: min(920px, 100%);
+        margin: 0 auto;
+        padding: 24px;
+        display: grid;
+        gap: 18px;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: 0 24px 80px rgba(0,0,0,.35);
+        backdrop-filter: blur(18px);
+        padding: 24px;
+      }
+      .kicker {
+        margin: 0 0 12px;
+        color: var(--gold);
+        font: 600 .8rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif;
+        letter-spacing: .24em;
+        text-transform: uppercase;
+      }
+      h1, h2 { margin: 0; }
+      h1 {
+        font-size: clamp(2.1rem, 6vw, 4rem);
+        line-height: .95;
+        letter-spacing: -.04em;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+      .meta {
+        margin-top: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .meta span, code {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,.04);
+        color: var(--text);
+        font-size: .82rem;
+      }
+      .row {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      label {
+        display: grid;
+        gap: 8px;
+        color: var(--gold);
+        font: 600 .76rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+      }
+      input, textarea, button {
+        font: inherit;
+      }
+      input, textarea {
+        width: 100%;
+        min-height: 48px;
+        padding: 10px 14px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        color: var(--text);
+      }
+      textarea { min-height: 120px; resize: vertical; }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      button {
+        min-height: 46px;
+        padding: 0 18px;
+        border: 1px solid rgba(209,166,106,.36);
+        border-radius: 999px;
+        background: linear-gradient(135deg, rgba(209,166,106,.24), rgba(164,91,91,.28));
+        color: var(--text);
+        font: 600 .92rem/1 "Avenir Next Condensed", "Gill Sans", sans-serif;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: rgba(255,255,255,.04);
+        border-color: var(--line);
+      }
+      .status {
+        min-height: 1.2em;
+        font-size: .95rem;
+      }
+      .status.ok { color: #bfe6cb; }
+      .status.error { color: #f2b0b0; }
+      .results {
+        margin: 0;
+        padding-left: 20px;
+        color: var(--muted);
+        display: grid;
+        gap: 8px;
+      }
+      @media (max-width: 720px) {
+        .shell { padding: 18px; }
+        .row { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <p class="kicker">Admin Jobs</p>
+        <h1>Create session for immigrate flow.</h1>
+        <p>Use this page to create a private VIP deposit session through <code>${escapeHtml(next)}</code>. This browser page requires a valid admin gate session from <code>/internal/admin/login</code>.</p>
+        <div class="meta">
+          <span id="sessionState">Checking session…</span>
+          <code>${escapeHtml(next)}</code>
+        </div>
+        <div class="actions" style="margin-top:16px">
+          <button id="submitButton" type="button">Create Session</button>
+          <button id="logoutButton" type="button" class="secondary">Logout</button>
+        </div>
+        <p id="topStatus" class="status"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Session Details</h2>
+        <div class="row" style="margin-top:14px">
+          <label>Client Name
+            <input id="clientName" type="text" placeholder="เช่น คุณ Alex" />
+          </label>
+          <label>Model Name
+            <input id="modelName" type="text" placeholder="เช่น Kenji" />
+          </label>
+          <label>Job Date
+            <input id="jobDate" type="date" />
+          </label>
+          <label>Amount THB
+            <input id="amountThb" type="number" min="1" step="1" placeholder="15000" />
+          </label>
+          <label>Start Time
+            <input id="startTime" type="time" />
+          </label>
+          <label>End Time
+            <input id="endTime" type="time" />
+          </label>
+          <label>Location Name
+            <input id="locationName" type="text" placeholder="เช่น Four Seasons Bangkok" />
+          </label>
+          <label>Google Maps URL
+            <input id="googleMapUrl" type="url" placeholder="https://maps.google.com/..." />
+          </label>
+        </div>
+        <label style="margin-top:14px">Note
+          <textarea id="note" placeholder="รายละเอียดเพิ่มเติม เช่น ลูกค้าทราบเรทราคาแล้ว งานวันพรุ่งนี้"></textarea>
+        </label>
+        <p id="formStatus" class="status" style="margin-top:14px"></p>
+        <ol id="results" class="results"></ol>
+      </section>
+    </main>
+
+    <script>
+      (() => {
+        const SESSION_KEY = "mmd_admin_gate_v1";
+        const TTL_MS = 8 * 60 * 60 * 1000;
+        const LOGIN_URL = "/internal/admin/login?next=" + encodeURIComponent(location.pathname + location.search + location.hash);
+        const LOGIN_SESSION_URL = "/internal/admin/login/session";
+
+        function setStatus(id, message, tone) {
+          const node = document.getElementById(id);
+          if (!node) return;
+          node.textContent = message || "";
+          node.className = "status" + (tone ? " " + tone : "");
+        }
+
+        function listResults(items) {
+          const node = document.getElementById("results");
+          if (!node) return;
+          node.innerHTML = "";
+          (items || []).forEach((item) => {
+            const li = document.createElement("li");
+            li.textContent = item;
+            node.appendChild(li);
+          });
+        }
+
+        function readSession() {
+          try {
+            return JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
+          } catch {
+            return null;
+          }
+        }
+
+        function isValidSession(session) {
+          return !!session &&
+            session.ok === true &&
+            typeof session.at === "number" &&
+            Date.now() - session.at <= TTL_MS &&
+            typeof session.baseUrl === "string" &&
+            session.baseUrl.length > 0 &&
+            (session.bearer || session.confirmKey);
+        }
+
+        function goToLogin() {
+          try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+          location.replace(LOGIN_URL);
+        }
+
+        const session = readSession();
+        if (!isValidSession(session)) {
+          goToLogin();
+          return;
+        }
+
+        document.getElementById("sessionState").textContent = "Session ready: " + session.baseUrl;
+
+        async function adminFetch(path, init) {
+          const headers = new Headers((init && init.headers) || {});
+          if (session.bearer) headers.set("Authorization", "Bearer " + session.bearer);
+          if (session.confirmKey) headers.set("X-Confirm-Key", session.confirmKey);
+
+          const response = await fetch(session.baseUrl.replace(/\\/+$/, "") + path, {
+            ...init,
+            headers,
+          });
+
+          const payload = await response.json().catch(() => null);
+          if (response.status === 401) {
+            goToLogin();
+            throw new Error("Session expired");
+          }
+          if (!response.ok || !payload || payload.ok === false) {
+            throw new Error(payload && payload.error ? (payload.error.message || payload.error.code || "Request failed") : "Request failed");
+          }
+          return payload;
+        }
+
+        document.getElementById("logoutButton").addEventListener("click", async () => {
+          try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+          try {
+            await fetch(LOGIN_SESSION_URL, { method: "DELETE", credentials: "same-origin" });
+          } catch {}
+          location.replace(LOGIN_URL);
+        });
+
+        document.getElementById("submitButton").addEventListener("click", async () => {
+          const payload = {
+            client_name: document.getElementById("clientName").value.trim(),
+            model_name: document.getElementById("modelName").value.trim(),
+            job_type: "private_vip",
+            job_date: document.getElementById("jobDate").value,
+            start_time: document.getElementById("startTime").value,
+            end_time: document.getElementById("endTime").value,
+            location_name: document.getElementById("locationName").value.trim(),
+            google_map_url: document.getElementById("googleMapUrl").value.trim(),
+            amount_thb: Number(document.getElementById("amountThb").value || "0"),
+            payment_type: "deposit",
+            payment_method: "promptpay",
+            note: document.getElementById("note").value.trim(),
+          };
+
+          if (!payload.client_name) return setStatus("formStatus", "กรุณากรอกชื่อลูกค้า", "error");
+          if (!payload.model_name) return setStatus("formStatus", "กรุณากรอกชื่อโมเดล", "error");
+          if (!payload.job_date) return setStatus("formStatus", "กรุณาเลือกวันที่งาน", "error");
+          if (!payload.start_time) return setStatus("formStatus", "กรุณาเลือกเวลาเริ่ม", "error");
+          if (!payload.end_time) return setStatus("formStatus", "กรุณาเลือกเวลาจบ", "error");
+          if (!payload.location_name) return setStatus("formStatus", "กรุณากรอกชื่อสถานที่", "error");
+          if (!payload.amount_thb || payload.amount_thb <= 0) return setStatus("formStatus", "จำนวนมัดจำต้องมากกว่า 0", "error");
+
+          setStatus("formStatus", "กำลังสร้างรายการมัดจำ…");
+          listResults([]);
+
+          try {
+            const data = await adminFetch("${ADMIN_JOBS_ROOT}/create-session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+
+            setStatus("formStatus", "สร้างรายการมัดจำเรียบร้อยแล้ว", "ok");
+            listResults([
+              "session_id: " + (data.session_id || ""),
+              "payment_ref: " + (data.payment_ref || ""),
+              "customer_confirmation_url: " + (data.customer_confirmation_url || ""),
+              "model_confirmation_url: " + (data.model_confirmation_url || ""),
+              "customer_onboarding_url: " + (data.customer_onboarding_url || ""),
+            ]);
+          } catch (error) {
+            setStatus("formStatus", error.message || "ไม่สามารถสร้างรายการได้ กรุณาลองใหม่อีกครั้ง", "error");
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>`;
+
+  return new Response(html, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
 function envString(env: AdminEnv, key: string): string {
   const value = env[key];
   return typeof value === "string" ? value.trim() : "";
@@ -1834,6 +2178,10 @@ export default {
           return makeLoginRedirect(request, url.pathname);
         }
 
+        if (url.pathname === `${ADMIN_JOBS_ROOT}/create-session`) {
+          return renderAdminCreateSessionPage(request);
+        }
+
         if (isAdminConsoleRoute(url.pathname)) {
           return renderAdminConsolePage(request);
         }
@@ -1850,6 +2198,14 @@ export default {
       }
 
       if (isControlRoomApiRoute(url.pathname)) {
+        const gateSession = getValidatedGateSession(request);
+        if (!gateSession && !isAuthorized(request, env)) {
+          return unauthorizedWithCors(request);
+        }
+        return await proxyControlRoomRequest(request, adminEnv, gateSession);
+      }
+
+      if (isAdminJobsRoute(url.pathname)) {
         const gateSession = getValidatedGateSession(request);
         if (!gateSession && !isAuthorized(request, env)) {
           return unauthorizedWithCors(request);
