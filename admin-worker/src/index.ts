@@ -53,6 +53,7 @@ type AdminGateSession = {
   baseUrl: string;
   bearer?: string;
   confirmKey?: string;
+  accessCodeVerified?: boolean;
 };
 const SESSION_FIELDS = {
   SESSION_ID: "fldLTq2kZbyRv22IA",
@@ -364,6 +365,30 @@ function collectAdminVerifyCandidates(baseUrl: string, request: Request, env: Ad
   return [...candidates];
 }
 
+async function verifyLegacyAccessCode(accessCode: string, env: AdminEnv): Promise<boolean> {
+  const base = envString(env, "IMMIGRATE_WORKER_BASE_URL") || "";
+  if (!accessCode || !base) return false;
+
+  try {
+    const response = await fetch(`${base.replace(/\/+$/, "")}/internal/admin/login/session`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ accessCode }),
+    });
+
+    if (!response.ok) return false;
+    const payload = (await response.json().catch(() => null)) as
+      | { ok?: boolean }
+      | null;
+    return Boolean(payload?.ok === true);
+  } catch (error) {
+    console.warn("legacy access code verify failed", error);
+    return false;
+  }
+}
+
 async function verifyAdminAuthority(
   baseUrl: string,
   request: Request,
@@ -420,7 +445,7 @@ function readGateSession(request: Request): AdminGateSession | null {
 function isGateSessionValid(session: AdminGateSession | null): session is AdminGateSession {
   if (!session || session.ok !== true) return false;
   if (!session.baseUrl || !ADMIN_GATE_ALLOWED_BASE_URLS.has(session.baseUrl)) return false;
-  if (!session.bearer && !session.confirmKey) return false;
+  if (!session.bearer && !session.confirmKey && !session.accessCodeVerified) return false;
   if (!Number.isFinite(session.at)) return false;
   if (Date.now() - session.at > ADMIN_GATE_TTL_MS) return false;
   return true;
@@ -448,7 +473,7 @@ function adminGateBootstrapScript(session: AdminGateSession, next: string): stri
       Date.now() - value.at <= TTL_MS &&
       typeof value.baseUrl === "string" &&
       value.baseUrl.length > 0 &&
-      (value.bearer || value.confirmKey);
+      (value.bearer || value.confirmKey || value.accessCodeVerified);
   }
 
   function getNextUrl() {
@@ -830,7 +855,13 @@ async function handleAdminLoginSession(request: Request, env: AdminEnv): Promise
   if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
   if (confirmKey) headers.set("X-Confirm-Key", confirmKey);
 
-  const verified = await verifyAdminAuthority(baseUrl, request, env, headers);
+  let verified = await verifyAdminAuthority(baseUrl, request, env, headers);
+  let accessCodeVerified = false;
+  if (!verified && accessCode) {
+    accessCodeVerified = await verifyLegacyAccessCode(accessCode, env);
+    verified = accessCodeVerified;
+  }
+
   if (!verified) {
     return jsonWithCors(
       request,
@@ -839,17 +870,23 @@ async function handleAdminLoginSession(request: Request, env: AdminEnv): Promise
     );
   }
 
+  const redirectTo =
+    accessCodeVerified && next === "/internal/admin/console"
+      ? `${ADMIN_JOBS_ROOT}/create-session`
+      : next;
+
   const session: AdminGateSession = {
     ok: true,
     at: Date.now(),
     baseUrl,
     ...(bearer ? { bearer } : {}),
     ...(confirmKey ? { confirmKey } : {}),
+    ...(accessCodeVerified ? { accessCodeVerified: true } : {}),
   };
 
   return jsonWithCors(
     request,
-    { ok: true, data: { unlocked: true, redirect_to: next, session } },
+    { ok: true, data: { unlocked: true, redirect_to: redirectTo, session } },
     { headers: { "set-cookie": makeGateSessionCookie(request, session) } },
   );
 }
@@ -1196,7 +1233,7 @@ function renderAdminConsolePage(request: Request): Response {
             Date.now() - session.at <= TTL_MS &&
             typeof session.baseUrl === "string" &&
             session.baseUrl.length > 0 &&
-            (session.bearer || session.confirmKey);
+            (session.bearer || session.confirmKey || session.accessCodeVerified);
         }
 
         function goToLogin() {
