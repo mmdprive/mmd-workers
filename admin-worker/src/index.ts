@@ -694,7 +694,7 @@ function renderAdminLoginPage(request: Request): Response {
     <main class="shell">
       <p class="kicker">Internal Admin / Login</p>
       <h1>Private admin access.</h1>
-      <p class="lead">Unlock the admin area with an access code, bearer token, or confirm key. Verification runs against <code>/v1/admin/ping</code> before the browser gate session is created.</p>
+      <p class="lead">Unlock the admin area with an access code, bearer token, or confirm key. If you only have one secret, place it in <code>Access Code</code> and the system will try it as both bearer and confirm key before the browser gate session is created.</p>
 
       <form id="admin-login-form">
         <label>Base URL
@@ -806,8 +806,10 @@ async function handleAdminLoginSession(request: Request, env: AdminEnv): Promise
   } | null;
 
   const accessCode = nonEmptyString(body?.accessCode);
-  const bearer = nonEmptyString(body?.bearer) || accessCode;
-  const confirmKey = nonEmptyString(body?.confirmKey);
+  const explicitBearer = nonEmptyString(body?.bearer);
+  const explicitConfirmKey = nonEmptyString(body?.confirmKey);
+  const bearer = explicitBearer || accessCode;
+  const confirmKey = explicitConfirmKey || accessCode;
   const next = normalizeAdminNextPath(body?.next);
 
   let baseUrl = "";
