@@ -808,7 +808,7 @@ async function handleAdminLoginSession(request: Request, env: AdminEnv): Promise
   const accessCode = nonEmptyString(body?.accessCode);
   const explicitBearer = nonEmptyString(body?.bearer);
   const explicitConfirmKey = nonEmptyString(body?.confirmKey);
-  const bearer = explicitBearer || accessCode;
+  const bearer = accessCode || explicitBearer;
   const confirmKey = explicitConfirmKey || accessCode;
   const next = normalizeAdminNextPath(body?.next);
 
