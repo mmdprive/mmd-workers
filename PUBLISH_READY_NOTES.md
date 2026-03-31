@@ -20,8 +20,8 @@ Recommended next step:
 - Review and test from this workspace before any publish or deploy action.
 
 Route checklist in this workspace:
-- `immigrate-worker` owns `/internal/admin/login*`
-- `immigrate-worker` owns `/internal/admin/control-room*`
-- `immigrate-worker` owns `/internal/jobs*`
+- `admin-worker` owns `/internal/admin/login*`
+- `admin-worker` owns `/internal/admin/control-room*`
 - `admin-worker` owns `/internal/admin/console*`
 - `admin-worker` owns `/v1/admin/*`
+- `immigrate-worker` owns `/internal/jobs*`

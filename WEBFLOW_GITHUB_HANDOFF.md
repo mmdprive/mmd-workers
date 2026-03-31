@@ -8,13 +8,13 @@ Use this repo workspace as the current source of truth for the admin surfaces.
 
 ## Ownership
 
-- `immigrate-worker`
+- `admin-worker`
   - `/internal/admin/login*`
   - `/internal/admin/control-room*`
-  - `/internal/jobs*`
-- `admin-worker`
   - `/internal/admin/console*`
   - `/v1/admin/*`
+- `immigrate-worker`
+  - `/internal/jobs*`
 
 ## Webflow Note
 

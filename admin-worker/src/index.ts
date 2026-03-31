@@ -26,6 +26,33 @@ import {
 type AdminEnv = Env & Record<string, unknown>;
 
 const AIRTABLE_API = "https://api.airtable.com/v0";
+const CONTROL_ROOM = {
+  login: "/internal/admin/login",
+  loginSession: "/internal/admin/login/session",
+  root: "/internal/admin/control-room",
+  health: "/internal/admin/control-room/health",
+  list: "/internal/admin/control-room/line-inbox",
+  refresh: "/internal/admin/control-room/refresh-status",
+  sync: "/internal/admin/control-room/sync-airtable",
+  logs: "/internal/admin/control-room/logs",
+  sessions: "/internal/admin/control-room/sessions/live",
+  sessionRefresh: "/internal/admin/control-room/sessions/refresh",
+} as const;
+const ADMIN_GATE_SESSION_KEY = "mmd_admin_gate_v1";
+const ADMIN_GATE_TTL_MS = 8 * 60 * 60 * 1000;
+const ADMIN_GATE_DEFAULT_NEXT = CONTROL_ROOM.root;
+const ADMIN_GATE_ALLOWED_BASE_URLS = new Set([
+  "https://mmdbkk.com",
+  "https://mmdprive.webflow.io",
+  "https://mmdprive.com",
+]);
+type AdminGateSession = {
+  ok: true;
+  at: number;
+  baseUrl: string;
+  bearer?: string;
+  confirmKey?: string;
+};
 const SESSION_FIELDS = {
   SESSION_ID: "fldLTq2kZbyRv22IA",
   STATUS: "fldHAlxnRfpKucnNV",
@@ -240,6 +267,20 @@ function notFoundWithCors(request: Request): Response {
   return withCors(request, notFound());
 }
 
+function parseCookieMap(request: Request): Map<string, string> {
+  const raw = request.headers.get("cookie") || "";
+  const map = new Map<string, string>();
+
+  for (const part of raw.split(";")) {
+    const [name, ...rest] = part.split("=");
+    const key = name.trim();
+    if (!key) continue;
+    map.set(key, rest.join("=").trim());
+  }
+
+  return map;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -247,6 +288,597 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function encodeGateSession(session: AdminGateSession): string {
+  return btoa(JSON.stringify(session));
+}
+
+function decodeGateSession(value: string): AdminGateSession | null {
+  try {
+    const parsed = JSON.parse(atob(value)) as AdminGateSession;
+    return parsed && parsed.ok === true ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAdminBaseUrl(value: unknown, request: Request): string {
+  const rawInput = nonEmptyString(value) || new URL(request.url).origin;
+  const withProtocol = /^https?:\/\//i.test(rawInput) ? rawInput : `https://${rawInput}`;
+
+  let url: URL;
+  try {
+    url = new URL(withProtocol);
+  } catch {
+    throw new Error("invalid_base_url");
+  }
+
+  if (url.hostname === "www.mmdbkk.com") {
+    url.hostname = "mmdbkk.com";
+  }
+
+  const normalized = `https://${url.hostname}`;
+  if (!ADMIN_GATE_ALLOWED_BASE_URLS.has(normalized)) {
+    throw new Error("base_url_not_allowed");
+  }
+
+  return normalized;
+}
+
+function normalizeAdminNextPath(value: unknown): string {
+  const raw = nonEmptyString(value);
+  if (!raw.startsWith("/") || raw.startsWith("//")) {
+    return ADMIN_GATE_DEFAULT_NEXT;
+  }
+
+  try {
+    const parsed = new URL(raw, "https://mmdbkk.com");
+    if (parsed.origin !== "https://mmdbkk.com") {
+      return ADMIN_GATE_DEFAULT_NEXT;
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return ADMIN_GATE_DEFAULT_NEXT;
+  }
+}
+
+function collectAdminVerifyCandidates(baseUrl: string, request: Request, env: AdminEnv): string[] {
+  const candidates = new Set<string>();
+  candidates.add(baseUrl);
+
+  const requestOrigin = new URL(request.url).origin.replace(/\/+$/, "");
+  if (requestOrigin.startsWith("https://")) {
+    candidates.add(requestOrigin);
+  }
+
+  const configured = envString(env, "ADMIN_WORKER_BASE_URL");
+  if (configured.startsWith("https://")) {
+    candidates.add(configured.replace(/\/+$/, ""));
+  }
+
+  if (baseUrl === "https://mmdbkk.com") candidates.add("https://www.mmdbkk.com");
+  if (baseUrl === "https://www.mmdbkk.com") candidates.add("https://mmdbkk.com");
+
+  return [...candidates];
+}
+
+async function verifyAdminAuthority(
+  baseUrl: string,
+  request: Request,
+  env: AdminEnv,
+  headers: Headers,
+): Promise<boolean> {
+  for (const candidate of collectAdminVerifyCandidates(baseUrl, request, env)) {
+    try {
+      const response = await fetch(`${candidate}/v1/admin/ping`, {
+        method: "GET",
+        headers,
+      });
+      if (response.ok) return true;
+    } catch (error) {
+      console.warn("admin ping verify failed", candidate, error);
+    }
+  }
+
+  return false;
+}
+
+function makeGateSessionCookie(request: Request, session: AdminGateSession): string {
+  const isSecure = new URL(request.url).protocol === "https:";
+  const parts = [
+    `${ADMIN_GATE_SESSION_KEY}=${encodeURIComponent(encodeGateSession(session))}`,
+    "Path=/",
+    "SameSite=Lax",
+    `Max-Age=${Math.floor(ADMIN_GATE_TTL_MS / 1000)}`,
+  ];
+
+  if (isSecure) parts.push("Secure");
+  return parts.join("; ");
+}
+
+function clearGateSessionCookie(request: Request): string {
+  const isSecure = new URL(request.url).protocol === "https:";
+  const parts = [
+    `${ADMIN_GATE_SESSION_KEY}=`,
+    "Path=/",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ];
+
+  if (isSecure) parts.push("Secure");
+  return parts.join("; ");
+}
+
+function readGateSession(request: Request): AdminGateSession | null {
+  const cookieValue = parseCookieMap(request).get(ADMIN_GATE_SESSION_KEY);
+  if (!cookieValue) return null;
+  return decodeGateSession(decodeURIComponent(cookieValue));
+}
+
+function isGateSessionValid(session: AdminGateSession | null): session is AdminGateSession {
+  if (!session || session.ok !== true) return false;
+  if (!session.baseUrl || !ADMIN_GATE_ALLOWED_BASE_URLS.has(session.baseUrl)) return false;
+  if (!session.bearer && !session.confirmKey) return false;
+  if (!Number.isFinite(session.at)) return false;
+  if (Date.now() - session.at > ADMIN_GATE_TTL_MS) return false;
+  return true;
+}
+
+function getValidatedGateSession(request: Request): AdminGateSession | null {
+  const session = readGateSession(request);
+  return isGateSessionValid(session) ? session : null;
+}
+
+function adminGateBootstrapScript(session: AdminGateSession, next: string): string {
+  return `
+<script>
+(() => {
+  const KEY = ${JSON.stringify(ADMIN_GATE_SESSION_KEY)};
+  const TTL_MS = ${String(ADMIN_GATE_TTL_MS)};
+  const LOGIN_PATH = ${JSON.stringify(CONTROL_ROOM.login)};
+  const serverSession = ${JSON.stringify(session)};
+  const defaultNext = ${JSON.stringify(next)};
+
+  function isValid(value) {
+    return !!value &&
+      value.ok === true &&
+      typeof value.at === "number" &&
+      Date.now() - value.at <= TTL_MS &&
+      typeof value.baseUrl === "string" &&
+      value.baseUrl.length > 0 &&
+      (value.bearer || value.confirmKey);
+  }
+
+  function getNextUrl() {
+    return location.pathname + location.search + location.hash;
+  }
+
+  function redirectToLogin() {
+    try { sessionStorage.removeItem(KEY); } catch {}
+    location.replace(LOGIN_PATH + "?next=" + encodeURIComponent(getNextUrl() || defaultNext));
+  }
+
+  let session = null;
+  try {
+    session = JSON.parse(sessionStorage.getItem(KEY) || "null");
+  } catch {
+    session = null;
+  }
+
+  if (!isValid(session) && isValid(serverSession)) {
+    session = serverSession;
+    try { sessionStorage.setItem(KEY, JSON.stringify(session)); } catch {}
+  }
+
+  if (!isValid(session)) {
+    redirectToLogin();
+    return;
+  }
+
+  window.__MMD_ADMIN_GATE__ = {
+    key: KEY,
+    session,
+    getSession() {
+      return session;
+    },
+    buildHeaders(extraHeaders) {
+      const headers = new Headers(extraHeaders || {});
+      if (session.bearer) headers.set("Authorization", "Bearer " + session.bearer);
+      if (session.confirmKey) headers.set("X-Confirm-Key", session.confirmKey);
+      return headers;
+    }
+  };
+})();
+</script>`;
+}
+
+async function withInjectedAdminBootstrap(
+  request: Request,
+  response: Response,
+  session: AdminGateSession,
+): Promise<Response> {
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("text/html")) {
+    return response;
+  }
+
+  const html = await response.text();
+  const next = normalizeAdminNextPath(new URL(request.url).pathname + new URL(request.url).search);
+  const injected = html.includes("</head>")
+    ? html.replace("</head>", `${adminGateBootstrapScript(session, next)}</head>`)
+    : `${adminGateBootstrapScript(session, next)}${html}`;
+
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  return new Response(injected, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function isControlRoomApiRoute(pathname: string): boolean {
+  return (
+    pathname === CONTROL_ROOM.health ||
+    pathname === CONTROL_ROOM.list ||
+    pathname === CONTROL_ROOM.refresh ||
+    pathname === CONTROL_ROOM.sync ||
+    pathname === CONTROL_ROOM.logs ||
+    pathname === CONTROL_ROOM.sessions ||
+    pathname === CONTROL_ROOM.sessionRefresh
+  );
+}
+
+function isControlRoomBrowserRoute(pathname: string): boolean {
+  return pathname === CONTROL_ROOM.root || pathname.startsWith(`${CONTROL_ROOM.root}/`);
+}
+
+function isAdminConsoleRoute(pathname: string): boolean {
+  return pathname === "/internal/admin/console" || pathname.startsWith("/internal/admin/console/");
+}
+
+function isProtectedBrowserRoute(pathname: string): boolean {
+  if (pathname === CONTROL_ROOM.login || pathname === CONTROL_ROOM.loginSession) return false;
+  if (isControlRoomApiRoute(pathname)) return false;
+  return isControlRoomBrowserRoute(pathname) || isAdminConsoleRoute(pathname);
+}
+
+function makeLoginRedirect(request: Request, pathname: string): Response {
+  const url = new URL(request.url);
+  const next = pathname + url.search;
+  const loginUrl = new URL(CONTROL_ROOM.login, url.origin);
+  loginUrl.searchParams.set("next", next);
+  return Response.redirect(loginUrl.toString(), 302);
+}
+
+function renderAdminLoginPage(request: Request): Response {
+  const url = new URL(request.url);
+  const next = normalizeAdminNextPath(url.searchParams.get("next"));
+  let defaultBaseUrl = "https://mmdbkk.com";
+  try {
+    defaultBaseUrl = normalizeAdminBaseUrl(url.origin, request);
+  } catch {}
+
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MMD Admin Login</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #08070a;
+        --panel: rgba(19,15,24,.82);
+        --line: rgba(247,240,232,.14);
+        --text: #f7f0e8;
+        --muted: #c4b3a7;
+        --gold: #d1a66a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top, rgba(164,91,91,.18), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(95,127,132,.12), transparent 30%),
+          linear-gradient(180deg, #110d14 0%, #09080d 52%, #060507 100%);
+        font-family: Baskerville, "Iowan Old Style", Palatino, Georgia, serif;
+      }
+      .shell {
+        width: min(100%, 720px);
+        padding: 32px;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--panel);
+        box-shadow: 0 24px 80px rgba(0,0,0,.35);
+        backdrop-filter: blur(18px);
+      }
+      .kicker {
+        margin: 0 0 12px;
+        color: var(--gold);
+        font: 600 .8rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif;
+        letter-spacing: .24em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2.4rem, 9vw, 4.8rem);
+        line-height: .9;
+        letter-spacing: -.04em;
+      }
+      .lead {
+        margin: 18px 0 0;
+        color: var(--muted);
+        line-height: 1.7;
+        max-width: 42ch;
+      }
+      form {
+        display: grid;
+        gap: 14px;
+        margin-top: 28px;
+      }
+      label {
+        display: grid;
+        gap: 8px;
+        color: var(--gold);
+        font: 600 .78rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+      }
+      input {
+        width: 100%;
+        min-height: 52px;
+        padding: 0 16px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(7,6,10,.72);
+        color: var(--text);
+        font: inherit;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: .92rem;
+      }
+      code {
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255,255,255,.04);
+        color: var(--text);
+        font-family: SFMono-Regular, Consolas, Menlo, monospace;
+        font-size: .8rem;
+      }
+      button {
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(209,166,106,.36);
+        background: linear-gradient(135deg, rgba(209,166,106,.24), rgba(164,91,91,.28));
+        color: var(--text);
+        font: 600 .92rem/1 "Avenir Next Condensed", "Gill Sans", sans-serif;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .row { display: grid; gap: 14px; }
+      .error { min-height: 1.2em; margin: 0; color: #f2b0b0; }
+      .hint { margin: 0; color: var(--muted); font-size: .92rem; }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <p class="kicker">Internal Admin / Login</p>
+      <h1>Private admin access.</h1>
+      <p class="lead">Unlock the admin area with an access code, bearer token, or confirm key. Verification runs against <code>/v1/admin/ping</code> before the browser gate session is created.</p>
+
+      <form id="admin-login-form">
+        <label>Base URL
+          <input id="baseUrl" name="baseUrl" type="text" value="${escapeHtml(defaultBaseUrl)}" autocomplete="url" />
+        </label>
+
+        <div class="row">
+          <label>Access Code
+            <input id="accessCode" name="accessCode" type="password" autocomplete="current-password" />
+          </label>
+          <label>Bearer Token
+            <input id="bearer" name="bearer" type="password" autocomplete="off" />
+          </label>
+          <label>Confirm Key
+            <input id="confirmKey" name="confirmKey" type="password" autocomplete="off" />
+          </label>
+        </div>
+
+        <div class="meta">
+          <span>Next route</span>
+          <code>${escapeHtml(next)}</code>
+        </div>
+        <p class="hint">If <code>next</code> is missing, this login defaults to <code>${escapeHtml(ADMIN_GATE_DEFAULT_NEXT)}</code>.</p>
+        <p id="error" class="error" role="alert"></p>
+        <button id="submit" type="submit">Unlock</button>
+      </form>
+    </main>
+
+    <script>
+      (() => {
+        const KEY = ${JSON.stringify(ADMIN_GATE_SESSION_KEY)};
+        const next = ${JSON.stringify(next)};
+        const form = document.getElementById("admin-login-form");
+        const error = document.getElementById("error");
+        const submit = document.getElementById("submit");
+
+        function setError(message) {
+          error.textContent = message || "";
+        }
+
+        function storeSession(session) {
+          sessionStorage.setItem(KEY, JSON.stringify(session));
+        }
+
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          setError("");
+          submit.disabled = true;
+          submit.textContent = "Verifying...";
+
+          const payload = {
+            baseUrl: document.getElementById("baseUrl").value,
+            accessCode: document.getElementById("accessCode").value,
+            bearer: document.getElementById("bearer").value,
+            confirmKey: document.getElementById("confirmKey").value,
+            next,
+          };
+
+          try {
+            const response = await fetch(${JSON.stringify(CONTROL_ROOM.loginSession)}, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data || !data.ok) {
+              setError(data && data.error && data.error.message ? data.error.message : "Unable to unlock admin.");
+              return;
+            }
+            if (data.data && data.data.session) {
+              storeSession(data.data.session);
+            }
+            location.replace(data.data && data.data.redirect_to ? data.data.redirect_to : next);
+          } catch {
+            setError("Unable to verify admin access right now.");
+          } finally {
+            submit.disabled = false;
+            submit.textContent = "Unlock";
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>`;
+
+  return new Response(html, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+async function handleAdminLoginSession(request: Request, env: AdminEnv): Promise<Response> {
+  if (request.method === "DELETE") {
+    return jsonWithCors(
+      request,
+      { ok: true, data: { cleared: true, redirect_to: CONTROL_ROOM.login } },
+      { headers: { "set-cookie": clearGateSessionCookie(request) } },
+    );
+  }
+
+  const body = (await request.json().catch(() => null)) as {
+    baseUrl?: string;
+    accessCode?: string;
+    bearer?: string;
+    confirmKey?: string;
+    next?: string;
+  } | null;
+
+  const accessCode = nonEmptyString(body?.accessCode);
+  const bearer = nonEmptyString(body?.bearer) || accessCode;
+  const confirmKey = nonEmptyString(body?.confirmKey);
+  const next = normalizeAdminNextPath(body?.next);
+
+  let baseUrl = "";
+  try {
+    baseUrl = normalizeAdminBaseUrl(body?.baseUrl, request);
+  } catch (error) {
+    return badRequestWithCors(
+      request,
+      error instanceof Error ? error.message : "invalid_base_url",
+    );
+  }
+
+  if (!bearer && !confirmKey) {
+    return badRequestWithCors(request, "accessCode, bearer, or confirmKey is required");
+  }
+
+  const headers = new Headers();
+  if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
+  if (confirmKey) headers.set("X-Confirm-Key", confirmKey);
+
+  const verified = await verifyAdminAuthority(baseUrl, request, env, headers);
+  if (!verified) {
+    return jsonWithCors(
+      request,
+      { ok: false, error: { code: "ADMIN_VERIFY_FAILED", message: "Admin verification failed" } },
+      { status: 401 },
+    );
+  }
+
+  const session: AdminGateSession = {
+    ok: true,
+    at: Date.now(),
+    baseUrl,
+    ...(bearer ? { bearer } : {}),
+    ...(confirmKey ? { confirmKey } : {}),
+  };
+
+  return jsonWithCors(
+    request,
+    { ok: true, data: { unlocked: true, redirect_to: next, session } },
+    { headers: { "set-cookie": makeGateSessionCookie(request, session) } },
+  );
+}
+
+function controlRoomUpstreamBase(env: AdminEnv): string {
+  return (
+    envString(env, "IMMIGRATE_WORKER_BASE_URL") ||
+    "https://immigrate-worker.malemodel-bkk.workers.dev"
+  ).replace(/\/+$/, "");
+}
+
+async function proxyControlRoomRequest(
+  request: Request,
+  env: AdminEnv,
+  session: AdminGateSession | null,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const upstreamUrl = `${controlRoomUpstreamBase(env)}${url.pathname}${url.search}`;
+  const headers = new Headers(request.headers);
+  headers.delete("cookie");
+  headers.delete("host");
+  headers.delete("content-length");
+  headers.delete("authorization");
+  headers.delete("x-confirm-key");
+  headers.set("x-internal-token", env.INTERNAL_TOKEN);
+  if (session?.baseUrl) {
+    headers.set("x-admin-base-url", session.baseUrl);
+  }
+
+  const init: RequestInit = {
+    method: request.method,
+    headers,
+    redirect: "manual",
+  };
+
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = await request.arrayBuffer();
+  }
+
+  const upstream = await fetch(upstreamUrl, init);
+  return new Response(upstream.body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers: upstream.headers,
+  });
 }
 
 function renderAdminConsolePage(request: Request): Response {
@@ -1169,11 +1801,41 @@ export default {
         return jsonWithCors(request, body);
       }
 
+      if ((method === "GET" || method === "HEAD") && url.pathname === CONTROL_ROOM.login) {
+        return renderAdminLoginPage(request);
+      }
+
       if (
-        (method === "GET" || method === "HEAD") &&
-        (url.pathname === "/internal/admin/console" || url.pathname.startsWith("/internal/admin/console/"))
+        (method === "POST" || method === "DELETE") &&
+        url.pathname === CONTROL_ROOM.loginSession
       ) {
-        return renderAdminConsolePage(request);
+        return await handleAdminLoginSession(request, adminEnv);
+      }
+
+      if ((method === "GET" || method === "HEAD") && isProtectedBrowserRoute(url.pathname)) {
+        const gateSession = getValidatedGateSession(request);
+
+        if (!gateSession && !isAuthorized(request, env)) {
+          return makeLoginRedirect(request, url.pathname);
+        }
+
+        if (isAdminConsoleRoute(url.pathname)) {
+          return renderAdminConsolePage(request);
+        }
+
+        const upstream = await fetch(request);
+        if (method === "HEAD" || !gateSession) {
+          return upstream;
+        }
+        return await withInjectedAdminBootstrap(request, upstream, gateSession);
+      }
+
+      if (isControlRoomApiRoute(url.pathname)) {
+        const gateSession = getValidatedGateSession(request);
+        if (!gateSession && !isAuthorized(request, env)) {
+          return unauthorizedWithCors(request);
+        }
+        return await proxyControlRoomRequest(request, adminEnv, gateSession);
       }
 
       if (method === "GET" && url.pathname === "/v1/admin/ping") {

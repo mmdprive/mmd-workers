@@ -15,6 +15,8 @@ export interface Env {
 
   ADMIN_BEARER?: string;
   CONFIRM_KEY?: string;
+  ADMIN_WORKER_BASE_URL?: string;
+  IMMIGRATE_WORKER_BASE_URL?: string;
   PAYMENTS_WORKER_ORIGIN?: string;
   PAYMENTS_WORKER_BASE_URL?: string;
   JOBS_WORKER_BASE_URL?: string;

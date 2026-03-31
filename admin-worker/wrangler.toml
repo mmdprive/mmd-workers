@@ -13,6 +13,7 @@ AIRTABLE_TABLE_SESSIONS = "tblC98mKWbzmPuNzX"
 AIRTABLE_TABLE_PAYMENTS = "tblWGGJJOx5eBvBZJ"
 AIRTABLE_TABLE_ACTIVITY_LOGS = "Activity Logs"
 AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
+IMMIGRATE_WORKER_BASE_URL = "https://immigrate-worker.malemodel-bkk.workers.dev"
 # AIRTABLE_TABLE_MEMBER_NOTES = "Member Notes"
 # JOBS_WORKER_BASE_URL = ""
 # CREATE_LINKS_URL = ""
@@ -58,4 +59,20 @@ zone_name = "mmdbkk.com"
 
 [[routes]]
 pattern = "www.mmdbkk.com/internal/admin/console*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/internal/admin/login*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/admin/login*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/internal/admin/control-room*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/admin/control-room*"
 zone_name = "mmdbkk.com"
