@@ -41,7 +41,7 @@ const CONTROL_ROOM = {
 } as const;
 const ADMIN_GATE_SESSION_KEY = "mmd_admin_gate_v1";
 const ADMIN_GATE_TTL_MS = 8 * 60 * 60 * 1000;
-const ADMIN_GATE_DEFAULT_NEXT = CONTROL_ROOM.root;
+const ADMIN_GATE_DEFAULT_NEXT = "/internal/admin/console";
 const ADMIN_GATE_ALLOWED_BASE_URLS = new Set([
   "https://mmdbkk.com",
   "https://mmdprive.webflow.io",
@@ -367,19 +367,20 @@ function collectAdminVerifyCandidates(baseUrl: string, request: Request, env: Ad
 
 async function verifyLegacyAccessCode(
   accessCode: string,
-  baseUrl: string,
   env: AdminEnv,
 ): Promise<boolean> {
   const base = envString(env, "IMMIGRATE_WORKER_BASE_URL") || "";
-  if (!accessCode || !base) return false;
+  const internalToken = envString(env, "INTERNAL_TOKEN");
+  if (!accessCode || !base || !internalToken) return false;
 
   try {
-    const response = await fetch(`${base.replace(/\/+$/, "")}/internal/admin/login/session`, {
+    const response = await fetch(`${base.replace(/\/+$/, "")}/internal/admin/verify-access-code`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "x-internal-token": internalToken,
       },
-      body: JSON.stringify({ accessCode, baseUrl }),
+      body: JSON.stringify({ accessCode }),
     });
 
     if (!response.ok) return false;
@@ -862,7 +863,7 @@ async function handleAdminLoginSession(request: Request, env: AdminEnv): Promise
   let verified = await verifyAdminAuthority(baseUrl, request, env, headers);
   let accessCodeVerified = false;
   if (!verified && accessCode) {
-    accessCodeVerified = await verifyLegacyAccessCode(accessCode, baseUrl, env);
+    accessCodeVerified = await verifyLegacyAccessCode(accessCode, env);
     verified = accessCodeVerified;
   }
 
@@ -873,11 +874,6 @@ async function handleAdminLoginSession(request: Request, env: AdminEnv): Promise
       { status: 401 },
     );
   }
-
-  const redirectTo =
-    accessCodeVerified && next === "/internal/admin/console"
-      ? `${ADMIN_JOBS_ROOT}/create-session`
-      : next;
 
   const session: AdminGateSession = {
     ok: true,
@@ -890,7 +886,7 @@ async function handleAdminLoginSession(request: Request, env: AdminEnv): Promise
 
   return jsonWithCors(
     request,
-    { ok: true, data: { unlocked: true, redirect_to: redirectTo, session } },
+    { ok: true, data: { unlocked: true, redirect_to: next, session } },
     { headers: { "set-cookie": makeGateSessionCookie(request, session) } },
   );
 }
