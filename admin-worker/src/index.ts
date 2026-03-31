@@ -365,7 +365,11 @@ function collectAdminVerifyCandidates(baseUrl: string, request: Request, env: Ad
   return [...candidates];
 }
 
-async function verifyLegacyAccessCode(accessCode: string, env: AdminEnv): Promise<boolean> {
+async function verifyLegacyAccessCode(
+  accessCode: string,
+  baseUrl: string,
+  env: AdminEnv,
+): Promise<boolean> {
   const base = envString(env, "IMMIGRATE_WORKER_BASE_URL") || "";
   if (!accessCode || !base) return false;
 
@@ -375,7 +379,7 @@ async function verifyLegacyAccessCode(accessCode: string, env: AdminEnv): Promis
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ accessCode }),
+      body: JSON.stringify({ accessCode, baseUrl }),
     });
 
     if (!response.ok) return false;
@@ -858,7 +862,7 @@ async function handleAdminLoginSession(request: Request, env: AdminEnv): Promise
   let verified = await verifyAdminAuthority(baseUrl, request, env, headers);
   let accessCodeVerified = false;
   if (!verified && accessCode) {
-    accessCodeVerified = await verifyLegacyAccessCode(accessCode, env);
+    accessCodeVerified = await verifyLegacyAccessCode(accessCode, baseUrl, env);
     verified = accessCodeVerified;
   }
 
