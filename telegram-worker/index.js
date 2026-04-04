@@ -39,9 +39,17 @@ class HttpError extends Error {
 function requireInternalToken(req, env) {
   const bearer = String(req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
   const header = String(req.headers.get('X-Internal-Token') || '').trim();
+  const confirmKey = String(req.headers.get('X-Confirm-Key') || '').trim();
   const actual = header || bearer;
-  const expected = String(env.INTERNAL_TOKEN || '').trim();
-  if (!expected || actual !== expected) {
+  const allowedTokens = [
+    String(env.INTERNAL_TOKEN || '').trim(),
+    String(env.AUTH_SERVICE_ADMIN_TO_TELEGRAM || '').trim(),
+    String(env.AUTH_SERVICE_EVENTS_TO_TELEGRAM || '').trim(),
+  ].filter(Boolean);
+  const expectedConfirmKey = String(env.CONFIRM_KEY || '').trim();
+  const internalOk = Boolean(actual && allowedTokens.includes(actual));
+  const confirmOk = Boolean(confirmKey && expectedConfirmKey && confirmKey === expectedConfirmKey);
+  if (!internalOk && !confirmOk) {
     throw new HttpError(401, { ok: false, error: 'unauthorized' });
   }
 }
@@ -76,8 +84,7 @@ function formatMessage(body) {
   if (body.amount_thb != null && body.amount_thb !== '') lines.push(`amount: ${escapeHtml(body.amount_thb)} THB`);
   if (body.status) lines.push(`status: ${escapeHtml(body.status)}`);
   if (body.note) lines.push(`note: ${escapeHtml(body.note)}`);
-  return lines.join('
-') || 'MMD system notification';
+  return lines.join('\n') || 'MMD system notification';
 }
 
 async function telegramNotify(body, env) {

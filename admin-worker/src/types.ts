@@ -22,6 +22,7 @@ export interface Env {
   JOBS_WORKER_BASE_URL?: string;
   CREATE_LINKS_URL?: string;
   WEB_BASE_URL?: string;
+  TELEGRAM_INTERNAL_SEND_URL?: string;
 
   AIRTABLE_DEALS_FIELD_DEAL_ID?: string;
   AIRTABLE_DEALS_FIELD_CLIENT_ID?: string;

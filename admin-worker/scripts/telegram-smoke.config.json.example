@@ -1,0 +1,13 @@
+{
+  "chat_id": "-1003546439681",
+  "rooms": [
+    { "key": "membership", "label": "Membership", "thread_env": "TG_THREAD_MEMBERSHIP" },
+    { "key": "confirm_jobs", "label": "Confirm / Jobs", "thread_env": "TG_THREAD_CONFIRM" },
+    { "key": "points", "label": "Points", "thread_env": "TG_THREAD_POINTS" },
+    { "key": "alerts_exceptions", "label": "Alerts / Exceptions", "thread_env": "TG_THREAD_ALERTS_EXCEPTIONS" },
+    { "key": "system_log", "label": "System Log", "thread_env": "TG_THREAD_SYSTEM_LOG" },
+    { "key": "rules_customer", "label": "Rules (Customer)", "thread_env": "TG_THREAD_RULES_CUSTOMER" },
+    { "key": "rules_model", "label": "Rules (Model)", "thread_env": "TG_THREAD_RULES_MODEL" },
+    { "key": "archive", "label": "Archive", "thread_env": "TG_THREAD_ARCHIVE" }
+  ]
+}
