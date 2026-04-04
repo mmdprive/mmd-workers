@@ -15,3 +15,7 @@ cd ../telegram-worker && npx wrangler deploy
 Important:
 - Each worker has its own wrangler.toml
 - No assets/site config (Worker only)
+
+Model session API source of truth:
+- OpenAPI: `packages/shared-api-contracts/model-console/model-session-api.openapi.yaml`
+- Contract: `packages/shared-api-contracts/model-console/model-session-api.contract.ts`

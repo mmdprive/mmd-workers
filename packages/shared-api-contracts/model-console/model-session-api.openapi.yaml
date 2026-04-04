@@ -1,0 +1,666 @@
+openapi: 3.0.3
+info:
+  title: MMD Model Session Facade API
+  version: 2.0.0
+  description: |
+    Canonical model-session facade API used by the model console.
+
+    Core rules:
+    - session_id is the primary session reference
+    - token query/body param must be `t`
+    - model identity must not be inferred from display name alone
+    - customer token and model token must remain separate
+    - admin-worker is the public facade for model-session reads and writes
+
+servers:
+  - url: https://mmdbkk.com
+    description: Public domain
+  - url: https://www.mmdbkk.com
+    description: Public www domain
+  - url: https://admin-worker.malemodel-bkk.workers.dev
+    description: Worker direct origin
+
+tags:
+  - name: Model Session
+    description: Token-based model session facade endpoints
+
+paths:
+  /model/session/current:
+    get:
+      tags: [Model Session]
+      summary: Resolve the current model session from token
+      operationId: getCurrentModelSession
+      parameters:
+        - $ref: "#/components/parameters/TokenQuery"
+      responses:
+        "200":
+          description: Session resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionReadResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}:
+    get:
+      tags: [Model Session]
+      summary: Read a specific model session by session id
+      operationId: getModelSessionById
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+        - $ref: "#/components/parameters/TokenQuery"
+      responses:
+        "200":
+          description: Session resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionReadResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}/start-travel:
+    post:
+      tags: [Model Session]
+      summary: Mark travel as started
+      operationId: startTravel
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Transition accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionWriteResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "409":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}/share-location:
+    post:
+      tags: [Model Session]
+      summary: Update live location
+      operationId: shareLocation
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareLocationRequest"
+      responses:
+        "200":
+          description: Location accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareLocationResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}/arrived:
+    post:
+      tags: [Model Session]
+      summary: Mark the model as arrived
+      operationId: markArrived
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Transition accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionWriteResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "409":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}/met-client:
+    post:
+      tags: [Model Session]
+      summary: Mark model as having met the client
+      operationId: markMetClient
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Transition accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionWriteResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "409":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}/payment-status:
+    post:
+      tags: [Model Session]
+      summary: Check final payment status for the session
+      operationId: getFinalPaymentStatus
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Payment status returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentStatusResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}/start-work:
+    post:
+      tags: [Model Session]
+      summary: Start work after payment confirmation
+      operationId: startWork
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Transition accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionWriteResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "409":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}/work-finished:
+    post:
+      tags: [Model Session]
+      summary: Mark work as finished
+      operationId: workFinished
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Transition accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionWriteResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "409":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}/separated:
+    post:
+      tags: [Model Session]
+      summary: Mark model and client as separated
+      operationId: separated
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Transition accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionWriteResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "409":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+  /model/session/{sessionId}/emergency:
+    post:
+      tags: [Model Session]
+      summary: Send emergency alert for the session
+      operationId: emergencyAlert
+      parameters:
+        - $ref: "#/components/parameters/SessionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmergencyRequest"
+      responses:
+        "200":
+          description: Emergency accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmergencyResponse"
+        "401":
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSessionErrorResponse"
+
+components:
+  parameters:
+    TokenQuery:
+      name: t
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Canonical model session token
+
+    SessionIdPath:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Canonical session identifier
+
+  schemas:
+    TokenRequest:
+      type: object
+      required: [t]
+      properties:
+        t:
+          type: string
+
+    ModelContext:
+      type: object
+      properties:
+        model_id:
+          type: string
+        model_name:
+          type: string
+        memberstack_id:
+          type: string
+        telegram_id:
+          type: string
+        telegram_username:
+          type: string
+        district:
+          type: string
+        tier:
+          type: string
+        availability_status:
+          type: string
+
+    ModelSessionView:
+      type: object
+      required:
+        - session_id
+        - status
+        - page
+        - route
+        - visible_actions
+      properties:
+        session_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - confirmed
+            - en_route
+            - nearby
+            - arrived
+            - met_customer
+            - final_payment_pending
+            - final_payment_confirmed
+            - work_started
+            - work_finished
+            - separated
+            - closed
+        page:
+          type: string
+          enum:
+            - assigned
+            - on_the_way
+            - arrival_payment
+            - session_live
+            - wrap_up
+        route:
+          type: string
+        primary_action:
+          type: string
+        visible_actions:
+          type: array
+          items:
+            type: string
+        disabled_actions:
+          type: array
+          items:
+            type: string
+        client_name:
+          type: string
+        location:
+          type: string
+        meeting_point:
+          type: string
+        time_label:
+          type: string
+        duration_label:
+          type: string
+        final_payment_confirmed:
+          type: boolean
+        work_started_at:
+          type: string
+          nullable: true
+        finished_at:
+          type: string
+          nullable: true
+        model:
+          $ref: "#/components/schemas/ModelContext"
+
+    ModelSessionReadResponse:
+      type: object
+      required: [ok, session]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        session:
+          $ref: "#/components/schemas/ModelSessionView"
+
+    ModelSessionWriteResponse:
+      type: object
+      required:
+        - ok
+        - session_id
+        - previous_status
+        - status
+        - page
+        - route
+        - emitted_events
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        session_id:
+          type: string
+        previous_status:
+          type: string
+        status:
+          type: string
+        page:
+          type: string
+        route:
+          type: string
+        emitted_events:
+          type: array
+          items:
+            type: string
+
+    ShareLocationRequest:
+      type: object
+      required: [t, lat, lng]
+      properties:
+        t:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        accuracy_m:
+          type: number
+        source:
+          type: string
+          enum: [gps, manual, realtime-room]
+
+    ShareLocationResponse:
+      type: object
+      required: [ok, session_id]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        session_id:
+          type: string
+        accepted:
+          type: boolean
+        room_id:
+          type: string
+        note:
+          type: string
+
+    PaymentStatusResponse:
+      type: object
+      required: [ok, session_id, final_payment_confirmed]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        session_id:
+          type: string
+        final_payment_confirmed:
+          type: boolean
+        payment_ref:
+          type: string
+        amount:
+          type: number
+        verified_at:
+          type: string
+        note:
+          type: string
+
+    EmergencyRequest:
+      type: object
+      required: [t]
+      properties:
+        t:
+          type: string
+        message:
+          type: string
+        priority:
+          type: string
+          enum: [high, critical]
+
+    EmergencyResponse:
+      type: object
+      required: [ok, session_id]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        session_id:
+          type: string
+        delivered:
+          type: boolean
+        thread_id:
+          oneOf:
+            - type: string
+            - type: integer
+        note:
+          type: string
+
+    ModelSessionErrorResponse:
+      type: object
+      required: [ok, code, message]
+      properties:
+        ok:
+          type: boolean
+          enum: [false]
+        code:
+          type: string
+          enum:
+            - UNAUTHORIZED
+            - INVALID_STATUS
+            - PAYMENT_NOT_CONFIRMED
+            - SESSION_NOT_FOUND
+            - VALIDATION_ERROR
+            - INTERNAL_ERROR
+        message:
+          type: string
