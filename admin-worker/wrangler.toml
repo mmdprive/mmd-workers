@@ -1,6 +1,7 @@
 name = "admin-worker"
 main = "src/index.ts"
 compatibility_date = "2026-03-19"
+compatibility_flags = ["global_fetch_strictly_public"]
 workers_dev = true
 
 [vars]
@@ -16,6 +17,7 @@ AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
 IMMIGRATE_WORKER_BASE_URL = "https://immigrate-worker.malemodel-bkk.workers.dev"
 PUBLIC_WEB_BASE_URL = "https://mmdbkk.com"
 MODEL_DASHBOARD_URL = "https://mmdbkk.com/model/dashboard"
+TELEGRAM_INTERNAL_SEND_URL = "https://telegram-worker.malemodel-bkk.workers.dev/telegram/internal/send"
 AIRTABLE_SESSION_FIELD_SESSION_ID = "fldLTq2kZbyRv22IA"
 AIRTABLE_SESSION_FIELD_STATUS = "fldHAlxnRfpKucnNV"
 AIRTABLE_SESSION_FIELD_MODEL_ACK_AT = "fldFgkHXivIAThfDz"

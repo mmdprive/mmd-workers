@@ -32,6 +32,28 @@ This repository structure is documented through the files below:
 - [`docs/architecture/WORKERS.md`](docs/architecture/WORKERS.md) — worker roles and boundaries
 - [`docs/architecture/INTERNAL_DOCTRINE.md`](docs/architecture/INTERNAL_DOCTRINE.md) — internal principles and rules
 
+## Telegram smoke test
+
+Direct-thread Telegram smoke tests are available for internal forum rooms through:
+
+- `POST /v1/admin/telegram/dm`
+- `npm run telegram:smoke`
+
+Setup:
+
+1. Copy `.env.telegram-smoke.example` to `.env.telegram-smoke`
+2. Fill in one auth method: `ADMIN_BEARER` or `CONFIRM_KEY`
+3. Set `TELEGRAM_INTERNAL_SEND_URL` to the telegram-worker internal send endpoint
+4. Fill in all required `TG_THREAD_*` values
+5. Optionally copy `scripts/telegram-smoke.config.json.example` to `scripts/telegram-smoke.config.json`
+6. Load the env file into your shell, then run `npm run telegram:smoke`
+
+Notes:
+
+- The runner sends direct-thread tests and does not rely on flow mapping for non-canonical rooms
+- Room/thread mapping stays configurable via env-backed config
+- The default test prefix is `🧪 TEST ONLY`
+
 ## Current architecture
 
 ### Experience Layer

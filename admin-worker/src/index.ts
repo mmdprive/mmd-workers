@@ -1432,6 +1432,56 @@ function numReq(raw: Record<string, unknown>, key: string): number {
   return value;
 }
 
+async function sendTelegramDirectMessage(
+  env: AdminEnv,
+  payload: {
+    chat_id: string;
+    message_thread_id: number;
+    text: string;
+    parse_mode?: string;
+    disable_web_page_preview?: boolean;
+  },
+): Promise<Record<string, unknown>> {
+  const url = envString(env, "TELEGRAM_INTERNAL_SEND_URL");
+  const token = envString(env, "INTERNAL_TOKEN");
+  const confirmKey = envString(env, "CONFIRM_KEY");
+
+  if (!url || !token) {
+    throw new Error("missing_telegram_internal_env");
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Internal-Token": token,
+      ...(confirmKey ? { "X-Confirm-Key": confirmKey } : {}),
+    },
+    body: JSON.stringify({
+      chat_id: payload.chat_id,
+      message_thread_id: payload.message_thread_id,
+      text: payload.text,
+      parse_mode: payload.parse_mode || "HTML",
+      disable_web_page_preview: payload.disable_web_page_preview ?? true,
+    }),
+  });
+
+  const rawText = await response.text().catch(() => "");
+  let data: unknown = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    data = null;
+  }
+  if (!response.ok) {
+    const status = response.status;
+    const detail = isObject(data) ? JSON.stringify(data) : rawText;
+    throw new Error(`telegram_internal_send_failed:${status}:${detail}`);
+  }
+
+  return isObject(data) ? data : {};
+}
+
 async function callPaymentsCreateLink(
   env: AdminEnv,
   payload: Record<string, unknown>,
@@ -2061,6 +2111,65 @@ export default {
               error: String((error as Error)?.message || error || "job_create_failed"),
             },
             { status: 500 },
+          );
+        }
+      }
+
+      if (method === "POST" && url.pathname === "/v1/admin/telegram/dm") {
+        if (!isAuthorized(request, env)) {
+          return unauthorizedWithCors(request);
+        }
+
+        if (!isJsonRequest(request)) {
+          return unsupportedMediaTypeWithCors(request);
+        }
+
+        const rawPayload = await readJsonBody(request);
+        if (!rawPayload) {
+          return badRequestWithCors(request, "valid JSON object body is required");
+        }
+
+        const chatId = nonEmptyString(rawPayload.chat_id);
+        if (!chatId) {
+          return badRequestWithCors(request, "chat_id is required");
+        }
+
+        const threadId = Number(rawPayload.message_thread_id);
+        if (!Number.isInteger(threadId) || threadId <= 0) {
+          return badRequestWithCors(request, "message_thread_id must be a positive integer");
+        }
+
+        const text = nonEmptyString(rawPayload.text);
+        if (!text) {
+          return badRequestWithCors(request, "text is required");
+        }
+
+        try {
+          const telegram = await sendTelegramDirectMessage(env as AdminEnv, {
+            chat_id: chatId,
+            message_thread_id: threadId,
+            text,
+            parse_mode: nonEmptyString(rawPayload.parse_mode) || "HTML",
+            disable_web_page_preview:
+              typeof rawPayload.disable_web_page_preview === "boolean"
+                ? rawPayload.disable_web_page_preview
+                : true,
+          });
+
+          return jsonWithCors(request, {
+            ok: true,
+            layer: "core",
+            telegram,
+          });
+        } catch (error) {
+          return jsonWithCors(
+            request,
+            {
+              ok: false,
+              layer: "core",
+              error: String((error as Error)?.message || error || "telegram_dm_failed"),
+            },
+            { status: 502 },
           );
         }
       }
