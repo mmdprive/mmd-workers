@@ -57,6 +57,7 @@ export default {
 
     if (method === "GET" && path === "/health/check") {
       const paymentsBase = str(env.PAYMENTS_WORKER_BASE_URL || env.PAYMENTS_BASE_URL || "");
+      const paymentsPing = await probeWorkerPing(paymentsBase);
       return withCors(
         json({
           ok: true,
@@ -68,6 +69,10 @@ export default {
             confirm_key_configured: Boolean(str(env.CONFIRM_KEY || "")),
             admin_bearer_configured: Boolean(str(env.ADMIN_BEARER || "")),
             airtable_configured: Boolean(str(env.AIRTABLE_API_KEY || "") && str(env.AIRTABLE_BASE_ID || "")),
+            payments_ping_ok: paymentsPing.ok,
+          },
+          probes: {
+            payments_ping: paymentsPing,
           },
         }),
         cors
@@ -454,6 +459,18 @@ function withCors(res, cors) {
     status: res.status,
     headers,
   });
+}
+
+async function probeWorkerPing(baseUrl) {
+  if (!baseUrl) return { ok: false, skipped: true, reason: "missing_base_url" };
+
+  const url = `${baseUrl.replace(/\/+$/, "")}/ping`;
+  try {
+    const res = await fetch(url, { method: "GET" });
+    return { ok: res.ok, status: res.status, url };
+  } catch (e) {
+    return { ok: false, status: 0, url, error: String(e?.message || e || "fetch_failed") };
+  }
 }
 
 /* =========================
