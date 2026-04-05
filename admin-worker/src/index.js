@@ -399,6 +399,10 @@ async function createAdminSession(env, body) {
   if (!paymentsBaseUrl) {
     return { ok: false, error: "missing_payments_base_url", status: 500 };
   }
+  const confirmKey = String(env.CONFIRM_KEY || "").trim();
+  if (!confirmKey) {
+    return { ok: false, error: "missing_confirm_key", status: 500 };
+  }
 
   const paymentRef = String(
     body.payment_ref || body.paymentRef || `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -417,7 +421,8 @@ async function createAdminSession(env, body) {
     metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : {},
   };
 
-  const linkUrl = new URL("/v1/confirm/link", paymentsBaseUrl).toString();
+  const paymentsBaseWithSlash = paymentsBaseUrl.endsWith("/") ? paymentsBaseUrl : `${paymentsBaseUrl}/`;
+  const linkUrl = new URL("v1/confirm/link", paymentsBaseWithSlash).toString();
   const linkPayload = {
     session_id: normalized.session_id,
     payment_ref: normalized.payment_ref,
@@ -432,7 +437,10 @@ async function createAdminSession(env, body) {
 
   const res = await fetch(linkUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Confirm-Key": confirmKey,
+    },
     body: JSON.stringify(linkPayload),
   });
 
