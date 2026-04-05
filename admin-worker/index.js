@@ -55,6 +55,25 @@ export default {
       );
     }
 
+    if (method === "GET" && path === "/health/check") {
+      const paymentsBase = str(env.PAYMENTS_WORKER_BASE_URL || env.PAYMENTS_BASE_URL || "");
+      return withCors(
+        json({
+          ok: true,
+          worker: "admin-worker",
+          lock: LOCK,
+          ts: Date.now(),
+          checks: {
+            payments_base_configured: Boolean(paymentsBase),
+            confirm_key_configured: Boolean(str(env.CONFIRM_KEY || "")),
+            admin_bearer_configured: Boolean(str(env.ADMIN_BEARER || "")),
+            airtable_configured: Boolean(str(env.AIRTABLE_API_KEY || "") && str(env.AIRTABLE_BASE_ID || "")),
+          },
+        }),
+        cors
+      );
+    }
+
     // ------------------------------------------------------
     // DEMO LINKS (internal tool + public confirm fetch)
     // ------------------------------------------------------
