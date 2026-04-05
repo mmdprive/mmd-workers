@@ -383,6 +383,51 @@ function buildLastNDays(n) {
 /* =========================
    Admin create-session
 ========================= */
+async function callPaymentsCreateLink(env, payload) {
+  const confirmKey = String(env.CONFIRM_KEY || "").trim();
+  if (!confirmKey) {
+    const err = new Error("missing_CONFIRM_KEY");
+    err.status = 500;
+    throw err;
+  }
+
+  const paymentsBaseUrl = String(env.PAYMENTS_BASE_URL || env.PAYMENTS_WORKER_BASE_URL || "").trim();
+  if (!paymentsBaseUrl) {
+    const err = new Error("missing_PAYMENTS_BASE_URL");
+    err.status = 500;
+    throw err;
+  }
+
+  const paymentsBaseWithSlash = paymentsBaseUrl.endsWith("/") ? paymentsBaseUrl : `${paymentsBaseUrl}/`;
+  const linkUrl = new URL("v1/confirm/link", paymentsBaseWithSlash);
+
+  const res = await fetch(linkUrl.toString(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "X-Confirm-Key": confirmKey,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (_) {
+    data = null;
+  }
+
+  if (!res.ok) {
+    const err = new Error(data?.error || data?.message || `payments_worker_http_${res.status}`);
+    err.status = 502;
+    err.response = data;
+    throw err;
+  }
+
+  return data || {};
+}
+
 async function createAdminSession(env, body) {
   const required = ["memberstack_id", "model_id", "amount_thb"];
   const missing = required.filter((k) => body?.[k] == null || body?.[k] === "");
@@ -393,11 +438,6 @@ async function createAdminSession(env, body) {
   const amount = Number(body.amount_thb);
   if (!Number.isFinite(amount) || amount <= 0) {
     return { ok: false, error: "invalid_amount_thb", status: 400 };
-  }
-
-  const paymentsBaseUrl = String(env.PAYMENTS_BASE_URL || env.PAYMENTS_WORKER_BASE_URL || "").trim();
-  if (!paymentsBaseUrl) {
-    return { ok: false, error: "missing_payments_base_url", status: 500 };
   }
 
   const paymentRef = String(
@@ -417,7 +457,6 @@ async function createAdminSession(env, body) {
     metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : {},
   };
 
-  const linkUrl = new URL("/v1/confirm/link", paymentsBaseUrl).toString();
   const linkPayload = {
     session_id: normalized.session_id,
     payment_ref: normalized.payment_ref,
@@ -430,20 +469,19 @@ async function createAdminSession(env, body) {
     metadata: normalized.metadata,
   };
 
-  const res = await fetch(linkUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(linkPayload),
-  });
-
-  const confirmData = await res.json().catch(() => ({}));
-  if (!res.ok) {
+  let confirmData = {};
+  try {
+    confirmData = await callPaymentsCreateLink(env, linkPayload);
+  } catch (err) {
     return {
       ok: false,
       error: "payments_link_failed",
-      status: 502,
+      status: err?.status || 502,
       payment_ref: normalized.payment_ref,
-      detail: confirmData,
+      detail: {
+        message: err?.message || "unknown_error",
+        response: err?.response || null,
+      },
     };
   }
 
