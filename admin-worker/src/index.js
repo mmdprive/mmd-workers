@@ -57,13 +57,6 @@ export default {
     const url = new URL(req.url);
     const path = url.pathname;
     const method = req.method.toUpperCase();
-// example: call payments-worker to mint token
-const r = await fetch(`${env.
-payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ /* payload */ }),
-});
 
     // ---- CORS / Preflight ----
     if (method === "OPTIONS") return corsPreflight(req, env);
@@ -77,15 +70,18 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
       );
     }
 
-    // ---- Admin routes ----
-    if (path.startsWith("/v1/admin/")) {
+    // ---- Admin routes (/v1/admin/* and /internal/admin/*) ----
+    const adminPrefix = getAdminPrefix(path);
+    if (adminPrefix) {
+      const adminPath = path.slice(adminPrefix.length) || "/";
+
       // (1) Origin allowlist (recommended for browser calls)
       if (!isAllowedOrigin(req, env)) {
         return withCors(req, env, json({ ok: false, error: "origin_not_allowed" }, 403));
       }
 
       // (2) Writer endpoints (STRICT confirm-key only)
-      if (method === "POST" && (path === "/v1/admin/console/inbox" || path === "/v1/admin/payment/proof")) {
+      if (method === "POST" && (adminPath === "/console/inbox" || adminPath === "/payment/proof")) {
         if (!isConfirmKeyAuthed(req, env)) {
           return withCors(req, env, json({ ok: false, error: "unauthorized" }, 401));
         }
@@ -93,7 +89,7 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
         const body = await safeJson(req);
 
         // POST /v1/admin/console/inbox
-        if (path === "/v1/admin/console/inbox") {
+        if (adminPath === "/console/inbox") {
           if (!env.AIRTABLE_API_KEY || !env.AIRTABLE_BASE_ID) {
             return withCors(req, env, json({ ok: false, error: "missing_airtable_env" }, 500));
           }
@@ -142,7 +138,7 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
         }
 
         // POST /v1/admin/payment/proof
-        if (path === "/v1/admin/payment/proof") {
+        if (adminPath === "/payment/proof") {
           if (!env.AIRTABLE_API_KEY || !env.AIRTABLE_BASE_ID) {
             return withCors(req, env, json({ ok: false, error: "missing_airtable_env" }, 500));
           }
@@ -186,8 +182,8 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
         return withCors(req, env, json({ ok: false, error: "unauthorized" }, 401));
       }
 
-      // GET /v1/admin/ping
-      if (method === "GET" && path === "/v1/admin/ping") {
+      // GET /{v1|internal}/admin/ping
+      if (method === "GET" && adminPath === "/ping") {
         return withCors(
           req,
           env,
@@ -195,8 +191,8 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
         );
       }
 
-      // GET /v1/admin/stats
-      if (method === "GET" && path === "/v1/admin/stats") {
+      // GET /{v1|internal}/admin/stats
+      if (method === "GET" && adminPath === "/stats") {
         const labels = buildLastNDays(7);
         const trends = {
           labels,
@@ -213,8 +209,8 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
         return withCors(req, env, json({ ok: true, summary, trends }));
       }
 
-      // GET /v1/admin/members/list
-      if (method === "GET" && path === "/v1/admin/members/list") {
+      // GET /{v1|internal}/admin/members/list
+      if (method === "GET" && adminPath === "/members/list") {
         const q = (url.searchParams.get("q") || "").trim();
         const limit = clampInt(url.searchParams.get("limit"), 1, 200, 50);
 
@@ -227,8 +223,8 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
         return withCors(req, env, json({ ok: true, items }));
       }
 
-      // POST /v1/admin/members/update
-      if (method === "POST" && path === "/v1/admin/members/update") {
+      // POST /{v1|internal}/admin/members/update
+      if (method === "POST" && adminPath === "/members/update") {
         const body = await safeJson(req);
         const out = await airtableUpdateByIdOrField(env, env.AIRTABLE_TABLE_MEMBERS || "members", body, {
           idField: "id",
@@ -238,15 +234,15 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
         return withCors(req, env, json({ ok: true, updated: out }));
       }
 
-      // POST /v1/admin/telegram/dm
-      if (method === "POST" && path === "/v1/admin/telegram/dm") {
+      // POST /{v1|internal}/admin/telegram/dm
+      if (method === "POST" && adminPath === "/telegram/dm") {
         const body = await safeJson(req);
         const r = await telegramInternalSend(env, body);
         return withCors(req, env, json({ ok: true, telegram: r }, r.ok ? 200 : 502));
       }
 
-      // GET /v1/admin/models/list
-      if (method === "GET" && path === "/v1/admin/models/list") {
+      // GET /{v1|internal}/admin/models/list
+      if (method === "GET" && adminPath === "/models/list") {
         const q = (url.searchParams.get("q") || "").trim();
         const limit = clampInt(url.searchParams.get("limit"), 1, 200, 50);
 
@@ -259,11 +255,24 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
         return withCors(req, env, json({ ok: true, items }));
       }
 
-      // POST /v1/admin/models/upsert
-      if (method === "POST" && path === "/v1/admin/models/upsert") {
+      // POST /{v1|internal}/admin/models/upsert
+      if (method === "POST" && adminPath === "/models/upsert") {
         const body = await safeJson(req);
         const out = await airtableUpsertModel(env, env.AIRTABLE_TABLE_MODELS || "models", body);
         return withCors(req, env, json({ ok: true, model: out }));
+      }
+
+      // POST create-session aliases (v1 + internal)
+      if (
+        method === "POST" &&
+        (adminPath === "/job/create" ||
+          adminPath === "/jobs/create-session" ||
+          adminPath === "/create-session")
+      ) {
+        const body = await safeJson(req);
+        const out = await createAdminSession(env, body);
+        const status = out.ok ? 200 : out.status || 400;
+        return withCors(req, env, json(out, status));
       }
 
       return withCors(req, env, json({ ok: false, error: "not_found" }, 404));
@@ -272,6 +281,12 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
     return withCors(req, env, json({ ok: false, error: "not_found" }, 404));
   },
 };
+
+function getAdminPrefix(path) {
+  if (path.startsWith("/v1/admin/")) return "/v1/admin";
+  if (path.startsWith("/internal/admin/")) return "/internal/admin";
+  return "";
+}
 
 /* =========================
    CORS
@@ -363,6 +378,93 @@ function buildLastNDays(n) {
     out.push(d.toISOString().slice(0, 10));
   }
   return out;
+}
+
+/* =========================
+   Admin create-session
+========================= */
+async function createAdminSession(env, body) {
+  const required = ["memberstack_id", "model_id", "amount_thb"];
+  const missing = required.filter((k) => body?.[k] == null || body?.[k] === "");
+  if (missing.length) {
+    return { ok: false, error: "missing_required_fields", missing, status: 400 };
+  }
+
+  const amount = Number(body.amount_thb);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: "invalid_amount_thb", status: 400 };
+  }
+
+  const paymentsBaseUrl = String(env.PAYMENTS_BASE_URL || env.PAYMENTS_WORKER_BASE_URL || "").trim();
+  if (!paymentsBaseUrl) {
+    return { ok: false, error: "missing_payments_base_url", status: 500 };
+  }
+
+  const paymentRef = String(
+    body.payment_ref || body.paymentRef || `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  );
+  const sessionId = String(body.session_id || body.sessionId || `sess_${crypto.randomUUID()}`);
+
+  const normalized = {
+    session_id: sessionId,
+    memberstack_id: String(body.memberstack_id),
+    model_id: String(body.model_id),
+    amount_thb: amount,
+    currency: String(body.currency || "THB"),
+    payment_ref: paymentRef,
+    return_url: body.return_url || body.success_url || null,
+    cancel_url: body.cancel_url || null,
+    metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : {},
+  };
+
+  const linkUrl = new URL("/v1/confirm/link", paymentsBaseUrl).toString();
+  const linkPayload = {
+    session_id: normalized.session_id,
+    payment_ref: normalized.payment_ref,
+    memberstack_id: normalized.memberstack_id,
+    model_id: normalized.model_id,
+    amount_thb: normalized.amount_thb,
+    currency: normalized.currency,
+    return_url: normalized.return_url,
+    cancel_url: normalized.cancel_url,
+    metadata: normalized.metadata,
+  };
+
+  const res = await fetch(linkUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(linkPayload),
+  });
+
+  const confirmData = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: "payments_link_failed",
+      status: 502,
+      payment_ref: normalized.payment_ref,
+      detail: confirmData,
+    };
+  }
+
+  const confirmation_url =
+    confirmData.confirmation_url || confirmData.confirm_url || confirmData.url || confirmData.link || null;
+  const confirmation_urls = {
+    confirmation_url,
+    confirm_url: confirmData.confirm_url || confirmation_url,
+    short_url: confirmData.short_url || null,
+  };
+
+  return {
+    ok: true,
+    session_id: normalized.session_id,
+    payment_ref: normalized.payment_ref,
+    amount_thb: normalized.amount_thb,
+    memberstack_id: normalized.memberstack_id,
+    model_id: normalized.model_id,
+    ...confirmation_urls,
+    payments_response: confirmData,
+  };
 }
 
 /* =========================
