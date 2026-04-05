@@ -795,8 +795,8 @@ async function telegramInternalSend(env, payload) {
 async function createAdminJob(env, body) {
   const client_name = strReq(body.client_name, "client_name");
   const model_name = strReq(body.model_name, "model_name");
-  const job_type = strReq(body.job_type, "job_type");
-  const job_date = strReq(body.job_date, "job_date");
+  const job_type = str(body.job_type || "session");
+  const job_date = normalizeDateInput(strReq(body.job_date, "job_date"));
   const start_time = strReq(body.start_time, "start_time");
   const end_time = strReq(body.end_time, "end_time");
   const location_name = strReq(body.location_name, "location_name");
@@ -872,8 +872,8 @@ async function createAdminJob(env, body) {
 }
 
 async function callPaymentsCreateLink(env, payload) {
-  const base = str(env.PAYMENTS_WORKER_BASE_URL || "").replace(/\/+$/, "");
-  if (!base) throw new Error("missing_PAYMENTS_WORKER_BASE_URL");
+  const base = str(env.PAYMENTS_WORKER_BASE_URL || env.PAYMENTS_BASE_URL || "").replace(/\/+$/, "");
+  if (!base) throw new Error("missing_PAYMENTS_WORKER_BASE_URL_or_PAYMENTS_BASE_URL");
 
   const res = await fetch(`${base}/v1/confirm/link`, {
     method: "POST",
@@ -897,6 +897,20 @@ async function callPaymentsCreateLink(env, payload) {
   }
 
   return data || {};
+}
+
+function normalizeDateInput(raw) {
+  const value = String(raw || "").trim();
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  // Convert DD/MM/YYYY (common in admin UI) => YYYY-MM-DD
+  const dmy = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (dmy) {
+    const [, dd, mm, yyyy] = dmy;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  // Keep original as fallback so downstream error remains explicit.
+  return value;
 }
 
 async function notifyJobCreated(env, data) {
