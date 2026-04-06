@@ -13,3 +13,4 @@ node_modules/
 dist/
 .wrangler/
 admin-console-V1/.next/
+admin-worker/mmd-chat-webhook/*.log
