@@ -279,6 +279,44 @@ components:
       required: [ok, transaction_ref, payment_status, ledger_written, audit_logged]
 
 paths:
+  /pay/internal:
+    post:
+      tags: [payments]
+      summary: Internal compatibility alias for payment verify/notify flows
+      description: >
+        Internal-only compatibility route guarded by INTERNAL_TOKEN authentication.
+        Prefer the explicit routes `/v1/pay/verify` and `/v1/payments/notify` for new integrations.
+        Routing rules: `action=verify` dispatches to verify, `action=notify` dispatches to notify.
+        If action is omitted, requests with `payment_ref` are treated as notify; requests with
+        `session_id` and `amount` are treated as verify.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Routed successfully to verify or notify handler
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Invalid or ambiguous internal payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid internal token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /v1/pay/verify:
     post:
       tags: [payments]
