@@ -963,6 +963,77 @@ async function handlePromoValidate(req, env) {
   }
 }
 
+async function handleInternalPay(req, env) {
+  if (!isInternalAuthed(req, env)) {
+    return withCors(req, env, jsonResponse({ ok: false, error: "unauthorized" }, 401));
+  }
+
+  const body = await readJson(req);
+  const action = toStr(body.action || body.op || body.operation).toLowerCase();
+
+  // Compatibility route for older internal callers that expected a single
+  // payment endpoint instead of the split verify/notify contract.
+  if (action === "verify" || action === "intent" || action === "create_intent") {
+    return handleVerify(
+      new Request(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: JSON.stringify(body),
+      }),
+      env
+    );
+  }
+
+  if (action === "notify" || action === "confirm" || action === "paid") {
+    return handleNotify(
+      new Request(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: JSON.stringify(body),
+      }),
+      env
+    );
+  }
+
+  if (body.payment_ref || body.transaction_ref) {
+    return handleNotify(
+      new Request(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: JSON.stringify(body),
+      }),
+      env
+    );
+  }
+
+  if (body.session_id && (body.amount != null || body.amount_thb != null)) {
+    return handleVerify(
+      new Request(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: JSON.stringify({
+          ...body,
+          amount: body.amount ?? body.amount_thb,
+        }),
+      }),
+      env
+    );
+  }
+
+  return withCors(
+    req,
+    env,
+    jsonResponse(
+      {
+        ok: false,
+        error: "invalid_internal_payment_request",
+        hint: "Set action=verify or action=notify, or include payment_ref for notify.",
+      },
+      400
+    )
+  );
+}
+
 /* -------------------------------------------------- */
 /* worker */
 /* -------------------------------------------------- */
@@ -985,6 +1056,10 @@ export default {
 
     if (method === "POST" && path === "/promo/validate") {
       return handlePromoValidate(req, env);
+    }
+
+    if (method === "POST" && path === "/pay/internal") {
+      return handleInternalPay(req, env);
     }
 
     if (method === "POST" && path === "/v1/confirm/link") {
