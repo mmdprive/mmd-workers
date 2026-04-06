@@ -1,6 +1,8 @@
 import { safeJson } from "./lib/http.js";
 import { buildSummary } from "./lib/summary.js";
 
+const AIRTABLE_API = "https://api.airtable.com/v0";
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -25,6 +27,24 @@ export default {
 
     if (method === "GET" && path === "/pay/summary") {
       return handlePaySummary(req, env);
+    }
+
+    if (method === "POST" && path === "/member/api/renewal/intake") {
+      if (!isAllowedOrigin(req, env)) {
+        return withCors(
+          req,
+          env,
+          jsonResponse(
+            {
+              ok: false,
+              error: { code: "origin_not_allowed", message: "Origin not allowed" },
+            },
+            403
+          )
+        );
+      }
+
+      return handleRenewalIntake(req, env);
     }
 
     const adminPrefix = getAdminPrefix(path);
@@ -213,6 +233,175 @@ async function handlePaySummary(req, env) {
   }
 }
 
+async function handleRenewalIntake(req, env) {
+  const body = await safeJson(req);
+  if (!body || typeof body !== "object") {
+    return withCors(
+      req,
+      env,
+      jsonResponse(
+        {
+          ok: false,
+          error: { code: "invalid_input", message: "Valid renewal payload is required" },
+        },
+        400
+      )
+    );
+  }
+
+  const displayName = toStr(body.display_name || body.name).trim();
+  const email = toStr(body.email).trim();
+  const paymentMethod = toStr(body.payment_method || "promptpay").trim() || "promptpay";
+  const packageCode = toStr(body.package_code || body.package).trim();
+  const packageLabel = toStr(body.package_label || body.target_tier || packageCode).trim();
+  const currentTier = toStr(body.current_tier_hint).trim();
+  const serviceHistoryNote = toStr(body.service_history_note || body.manual_note || body.note).trim();
+  const total = toNum(body.total);
+
+  if (!displayName) {
+    return withCors(
+      req,
+      env,
+      jsonResponse(
+        {
+          ok: false,
+          error: { code: "missing_name", message: "display_name or name is required" },
+        },
+        400
+      )
+    );
+  }
+
+  if (!email) {
+    return withCors(
+      req,
+      env,
+      jsonResponse(
+        {
+          ok: false,
+          error: { code: "missing_email", message: "email is required" },
+        },
+        400
+      )
+    );
+  }
+
+  if (!serviceHistoryNote) {
+    return withCors(
+      req,
+      env,
+      jsonResponse(
+        {
+          ok: false,
+          error: { code: "missing_note", message: "service_history_note or note is required" },
+        },
+        400
+      )
+    );
+  }
+
+  if (!Number.isFinite(total) || total < 0) {
+    return withCors(
+      req,
+      env,
+      jsonResponse(
+        {
+          ok: false,
+          error: { code: "invalid_total", message: "total must be a valid number" },
+        },
+        400
+      )
+    );
+  }
+
+  if (!env.AIRTABLE_API_KEY || !env.AIRTABLE_BASE_ID) {
+    return withCors(
+      req,
+      env,
+      jsonResponse(
+        {
+          ok: false,
+          error: { code: "missing_airtable_env", message: "Airtable env is not configured" },
+        },
+        500
+      )
+    );
+  }
+
+  const intakeId = `renewal_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`;
+  const fields = {
+    inbox_id: intakeId,
+    source: "web",
+    intent: "note_only",
+    member_name: displayName,
+    member_email: email,
+    member_phone: toStr(body.phone || body.contact).trim(),
+    memberstack_id: toStr(body.member_id || body.memberstack_id || body.member_ref).trim(),
+    telegram_id: "",
+    telegram_username: "",
+    line_user_id: toStr(body.line_user_id).trim(),
+    line_id: toStr(body.line_id).trim(),
+    legacy_tags: [packageLabel, paymentMethod, "renewal_web"]
+      .filter(Boolean)
+      .join(", "),
+    admin_note: [
+      serviceHistoryNote,
+      currentTier ? `current_tier:${currentTier}` : "",
+      packageLabel ? `target_tier:${packageLabel}` : "",
+      Number.isFinite(total) ? `amount_thb:${total}` : "",
+      paymentMethod ? `payment_method:${paymentMethod}` : "",
+      toStr(body.page).trim() ? `page:${toStr(body.page).trim()}` : "",
+    ]
+      .filter(Boolean)
+      .join(" | "),
+    payload_json: JSON.stringify({
+      ...body,
+      total,
+      intake_id: intakeId,
+      received_at: new Date().toISOString(),
+    }),
+    status: "new",
+    error_message: "",
+  };
+
+  try {
+    const rec = await airtableCreate({
+      baseId: env.AIRTABLE_BASE_ID,
+      tableId: env.AIRTABLE_TABLE_CONSOLE_INBOX_ID || "tblFHmfpB2TTrzO2e",
+      apiKey: env.AIRTABLE_API_KEY,
+      fields,
+    });
+
+    return withCors(
+      req,
+      env,
+      jsonResponse({
+        ok: true,
+        data: {
+          intake_id: intakeId,
+          record_id: rec?.id || null,
+          mode: "admin_worker_console_inbox",
+        },
+      })
+    );
+  } catch (error) {
+    return withCors(
+      req,
+      env,
+      jsonResponse(
+        {
+          ok: false,
+          error: {
+            code: "airtable_create_failed",
+            message: String(error?.message || error || "Airtable create failed"),
+          },
+        },
+        502
+      )
+    );
+  }
+}
+
 function isAuthed(req, env) {
   const auth = req.headers.get("Authorization") || "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
@@ -318,6 +507,21 @@ function jsonResponse(obj, status = 200) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+async function airtableCreate({ baseId, tableId, apiKey, fields }) {
+  const res = await fetch(`${AIRTABLE_API}/${baseId}/${tableId}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ records: [{ fields }] }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(JSON.stringify(data));
+  return data.records?.[0] || null;
 }
 
 function escapeHtml(value) {
