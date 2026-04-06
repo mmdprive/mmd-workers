@@ -27,6 +27,7 @@ export interface Deal {
   timing_label?: string;
   venue_name?: string;
   budget_amount_thb?: number;
+  pay_model_thb?: number;
   budget_signal?: "low" | "standard" | "premium" | "high";
   history_signal?: "none" | "low" | "medium" | "high";
   high_value_client?: boolean;

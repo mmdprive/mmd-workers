@@ -3,7 +3,7 @@ main = "index.js"
 compatibility_date = "2026-03-19"
 
 [vars]
-ALLOWED_ORIGINS = "https://mmdprive.com,https://mmdprive.webflow.io"
+ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://mmdprive.webflow.io"
 
 AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
 

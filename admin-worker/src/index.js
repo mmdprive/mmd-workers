@@ -440,6 +440,18 @@ async function createAdminSession(env, body) {
     return { ok: false, error: "invalid_amount_thb", status: 400 };
   }
 
+  const payModelAmount = Number(
+    body.pay_model_thb ?? body.pay_model ?? body.model_pay_thb ?? body.model_pay
+  );
+  const hasPayModelAmount =
+    body?.pay_model_thb != null ||
+    body?.pay_model != null ||
+    body?.model_pay_thb != null ||
+    body?.model_pay != null;
+  if (hasPayModelAmount && (!Number.isFinite(payModelAmount) || payModelAmount < 0)) {
+    return { ok: false, error: "invalid_pay_model_thb", status: 400 };
+  }
+
   const paymentRef = String(
     body.payment_ref || body.paymentRef || `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   );
@@ -450,6 +462,7 @@ async function createAdminSession(env, body) {
     memberstack_id: String(body.memberstack_id),
     model_id: String(body.model_id),
     amount_thb: amount,
+    pay_model_thb: hasPayModelAmount ? payModelAmount : null,
     currency: String(body.currency || "THB"),
     payment_ref: paymentRef,
     return_url: body.return_url || body.success_url || null,
@@ -463,6 +476,7 @@ async function createAdminSession(env, body) {
     memberstack_id: normalized.memberstack_id,
     model_id: normalized.model_id,
     amount_thb: normalized.amount_thb,
+    pay_model_thb: normalized.pay_model_thb,
     currency: normalized.currency,
     return_url: normalized.return_url,
     cancel_url: normalized.cancel_url,
@@ -498,6 +512,7 @@ async function createAdminSession(env, body) {
     session_id: normalized.session_id,
     payment_ref: normalized.payment_ref,
     amount_thb: normalized.amount_thb,
+    pay_model_thb: normalized.pay_model_thb,
     memberstack_id: normalized.memberstack_id,
     model_id: normalized.model_id,
     ...confirmation_urls,

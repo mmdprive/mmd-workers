@@ -1,1 +1,11 @@
-{}
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/admin/console/deals/[deal_id]/page": "app/admin/console/deals/[deal_id]/page.js",
+  "/admin/console/clients/page": "app/admin/console/clients/page.js",
+  "/admin/console/page": "app/admin/console/page.js",
+  "/admin/console/models/page": "app/admin/console/models/page.js",
+  "/admin/console/deals/page": "app/admin/console/deals/page.js",
+  "/admin/console/payments/page": "app/admin/console/payments/page.js",
+  "/admin/console/dashboard/page": "app/admin/console/dashboard/page.js"
+}

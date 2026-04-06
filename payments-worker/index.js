@@ -104,6 +104,14 @@ function ensurePositiveNumber(value, field) {
   return n;
 }
 
+function ensureNonNegativeNumber(value, field) {
+  const n = toNum(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`${field}_must_be_non_negative_number`);
+  }
+  return n;
+}
+
 function makePaymentRef(prefix = "pay") {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
   const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -236,6 +244,8 @@ async function createSessionIfMissing(env, payload) {
       payment_ref: payload.payment_ref,
       payment_type: payload.payment_type,
       amount_thb: payload.amount_thb,
+      pay_model_thb: payload.pay_model_thb,
+      "Pay Model": payload.pay_model_thb,
       client_name: payload.client_name,
       model_name: payload.model_name,
       job_type: payload.job_type,
@@ -259,6 +269,8 @@ async function createSessionIfMissing(env, payload) {
     payment_ref: payload.payment_ref,
     payment_type: payload.payment_type,
     amount_thb: payload.amount_thb,
+    pay_model_thb: payload.pay_model_thb,
+    "Pay Model": payload.pay_model_thb,
     client_name: payload.client_name,
     model_name: payload.model_name,
     job_type: payload.job_type,
@@ -423,6 +435,8 @@ async function createOrUpdatePaymentIntent(env, payload) {
     payment_type: payload.payment_stage,
     amount_thb: payload.amount,
     amount: payload.amount,
+    pay_model_thb: payload.pay_model_thb,
+    "Pay Model": payload.pay_model_thb,
     member_email: payload.member_email || "",
     package_code: payload.package_code || "",
     notes: payload.notes || "",
@@ -772,6 +786,16 @@ async function handleConfirmLink(req, env) {
     const location_name = toStr(assertRequired(body.location_name, "location_name"));
     const google_map_url = toStr(body.google_map_url);
     const amount_thb = ensurePositiveNumber(body.amount_thb || body.amount, "amount_thb");
+    const pay_model_thb =
+      body.pay_model_thb == null &&
+      body.pay_model == null &&
+      body.model_pay_thb == null &&
+      body.model_pay == null
+        ? undefined
+        : ensureNonNegativeNumber(
+            body.pay_model_thb ?? body.pay_model ?? body.model_pay_thb ?? body.model_pay,
+            "pay_model_thb"
+          );
     const payment_type = normalizeStage(body.payment_type || body.payment_stage || "full");
     const payment_method = toStr(body.payment_method || "promptpay");
     const note = toStr(body.note || body.notes);
@@ -814,6 +838,7 @@ async function handleConfirmLink(req, env) {
       payment_status: "pending",
       status: "pending",
       amount_thb,
+      pay_model_thb,
       client_name,
       model_name,
       job_type,
@@ -831,6 +856,7 @@ async function handleConfirmLink(req, env) {
       payment_ref,
       payment_stage: payment_type,
       amount: amount_thb,
+      pay_model_thb,
       payment_method,
       notes: note,
       created_at,
@@ -853,6 +879,7 @@ async function handleConfirmLink(req, env) {
           `Model: <b>${esc(model_name)}</b>`,
           `Type: <b>${esc(job_type)}</b>`,
           `Amount: <b>${Number(amount_thb)} THB</b>`,
+          pay_model_thb != null ? `Pay Model: <b>${Number(pay_model_thb)} THB</b>` : "",
         ].join("\n"),
         env.TG_THREAD_CONFIRM || "61"
       );

@@ -95,6 +95,7 @@ export function DealDetailPanel({ deal }: { deal: Deal }) {
                 <div className="mt-3 space-y-2 text-sm text-white/70">
                   <div>Status: Not Sent</div>
                   <div>Deposit: —</div>
+                  <div>Pay Model: {deal.pay_model_thb?.toLocaleString() ?? "—"} THB</div>
                   <div>Link Sent: No</div>
                 </div>
               </div>
@@ -121,6 +122,12 @@ export function DealDetailPanel({ deal }: { deal: Deal }) {
                 </div>
               </div>
               <div className="rounded-2xl bg-black/25 p-4">
+                <div className="text-white/40">Pay Model</div>
+                <div className="mt-2 text-2xl font-semibold">
+                  {deal.pay_model_thb?.toLocaleString() ?? "-"}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/25 p-4">
                 <div className="text-white/40">Signal</div>
                 <div className="mt-2 text-2xl font-semibold">
                   {deal.budget_signal ?? "-"}
@@ -141,7 +148,7 @@ export function DealDetailPanel({ deal }: { deal: Deal }) {
             </div>
           </div>
 
-          <ActionBar dealId={deal.deal_id} />
+          <ActionBar deal={deal} />
         </div>
       </div>
     </div>
