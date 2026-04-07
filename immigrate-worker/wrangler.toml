@@ -1,0 +1,72 @@
+name = "immigrate-worker"
+main = "src/index.ts"
+compatibility_date = "2026-03-25"
+workers_dev = true
+
+[vars]
+AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+AIRTABLE_TABLE_LINE_INBOX = "Line Inbox"
+AIRTABLE_TABLE_CLIENTS = "Clients"
+AIRTABLE_TABLE_SESSIONS = "tblC98mKWbzmPuNzX"
+ENABLE_AIRTABLE_SYNC = "true"
+JOBS_WORKER_BASE_URL = ""
+CREATE_LINKS_URL = "https://payments-worker.malemodel-bkk.workers.dev/v1/confirm/link"
+REALTIME_SESSIONS_URL = ""
+PUBLIC_WEB_BASE_URL = "https://www.mmdbkk.com"
+PUBLIC_ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
+ADMIN_WORKER_BASE_URL = "https://admin-worker.malemodel-bkk.workers.dev"
+
+# Set via secrets:
+# wrangler secret put INTERNAL_TOKEN
+# wrangler secret put AIRTABLE_API_KEY
+#
+# For production:
+# - set ENABLE_AIRTABLE_SYNC = "true"
+# - set REALTIME_SESSIONS_URL to a real session feed
+# - set JOBS_WORKER_BASE_URL to your jobs-worker origin
+# - set ADMIN_WORKER_BASE_URL to your admin-worker origin for canonical member promotion
+
+# Example route bindings for a domain you control:
+[[routes]]
+pattern = "mmdbkk.com/internal/jobs*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/jobs*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/internal/admin/jobs*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/admin/jobs*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/member/api/invite*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/member/api/invite*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/member/api/renewal*"
+zone_name = "mmdbkk.com"
+
+    [[routes]]
+pattern = "www.mmdbkk.com/member/api/renewal*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/member/api/jobs*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/member/api/jobs*"
+zone_name = "mmdbkk.com"
+#
+# Note:
+# You generally cannot bind Cloudflare Worker routes directly onto a `*.webflow.io` host you do not control.
+# For production, use a domain/zone you control and point Control Room traffic there.

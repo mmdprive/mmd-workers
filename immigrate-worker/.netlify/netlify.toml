@@ -1,0 +1,30 @@
+functionsDirectory = "/Users/Hiright_1/Desktop/MMDMaleModel/MMDPrive/mmd-workers/immigrate-worker/netlify/functions"
+functionsDirectoryOrigin = "config-v1"
+plugins = []
+headers = []
+redirects = []
+
+[build]
+publish = "/Users/Hiright_1/Desktop/MMDMaleModel/MMDPrive/mmd-workers/immigrate-worker"
+publishOrigin = "default"
+base = "/Users/Hiright_1/Desktop/MMDMaleModel/MMDPrive/mmd-workers/immigrate-worker"
+functions = "/Users/Hiright_1/Desktop/MMDMaleModel/MMDPrive/mmd-workers/immigrate-worker/netlify/functions"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[functions]
+
+[functions."*"]
+node_bundler = "esbuild"
