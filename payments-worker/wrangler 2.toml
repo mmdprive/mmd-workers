@@ -1,0 +1,22 @@
+name = "payments-worker"
+main = "index.js"
+compatibility_date = "2026-03-12"
+workers_dev = true
+
+[vars]
+AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+AIRTABLE_TABLE_PAYMENTS = "tblWGGJJOx5eBvBZJ"
+AIRTABLE_TABLE_SESSIONS = "tblC98mKWbzmPuNzX"
+AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
+TELEGRAM_CHAT_ID = "-1003546439681"
+TG_THREAD_CONFIRM = "61"
+TG_THREAD_POINTS = "17"
+POINTS_RATE = "100"
+WEB_BASE_URL = "https://mmdbkk.com"
+ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
+PAY_SESSIONS_TTL_DAYS = "30"
+
+[[kv_namespaces]]
+binding = "PAY_SESSIONS_KV"
+id = "e0c6b8a0785e462dad6d01f61a893e87"
+preview_id = "8f3ede8e3b0f447ea046cee47c7eef0b"

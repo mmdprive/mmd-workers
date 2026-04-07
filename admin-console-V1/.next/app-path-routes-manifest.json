@@ -1,0 +1,11 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/admin/page": "/admin",
+  "/admin/console/deals/[deal_id]/page": "/admin/console/deals/[deal_id]",
+  "/admin/console/clients/page": "/admin/console/clients",
+  "/admin/console/page": "/admin/console",
+  "/admin/console/models/page": "/admin/console/models",
+  "/admin/console/deals/page": "/admin/console/deals",
+  "/admin/console/payments/page": "/admin/console/payments",
+  "/admin/console/dashboard/page": "/admin/console/dashboard"
+}

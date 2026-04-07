@@ -1,0 +1,94 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "dynamicRoutes": [
+    {
+      "page": "/admin/console/deals/[deal_id]",
+      "regex": "^/admin/console/deals/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPdeal_id": "nxtPdeal_id"
+      },
+      "namedRegex": "^/admin/console/deals/(?<nxtPdeal_id>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/admin",
+      "regex": "^/admin(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin(?:/)?$"
+    },
+    {
+      "page": "/admin/console",
+      "regex": "^/admin/console(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/console(?:/)?$"
+    },
+    {
+      "page": "/admin/console/clients",
+      "regex": "^/admin/console/clients(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/console/clients(?:/)?$"
+    },
+    {
+      "page": "/admin/console/dashboard",
+      "regex": "^/admin/console/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/console/dashboard(?:/)?$"
+    },
+    {
+      "page": "/admin/console/deals",
+      "regex": "^/admin/console/deals(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/console/deals(?:/)?$"
+    },
+    {
+      "page": "/admin/console/models",
+      "regex": "^/admin/console/models(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/console/models(?:/)?$"
+    },
+    {
+      "page": "/admin/console/payments",
+      "regex": "^/admin/console/payments(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/console/payments(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "RSC",
+    "varyHeader": "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch",
+    "prefetchHeader": "Next-Router-Prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "Next-Router-Segment-Prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  },
+  "rewrites": []
+}

@@ -1,0 +1,13 @@
+name = "chat-worker-ai-integration"
+main = "src/index.ts"
+compatibility_date = "2026-03-19"
+
+[vars]
+AI_WORKER_BASE_URL = "https://ai-worker.mmdbkk.com"
+ADMIN_WORKER_BASE_URL = "https://admin-worker.mmdbkk.com"
+
+# Set via secrets:
+# wrangler secret put INTERNAL_TOKEN
+# wrangler secret put TELEGRAM_BOT_TOKEN
+# wrangler secret put TELEGRAM_CHAT_ID
+# wrangler secret put TG_THREAD_CONFIRM
