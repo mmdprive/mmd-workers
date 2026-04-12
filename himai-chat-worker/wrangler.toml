@@ -1,0 +1,12 @@
+name = "himai-chat-worker"
+main = "src/index.js"
+compatibility_date = "2026-04-11"
+
+[vars]
+APP_NAME = "Himai Shop"
+AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+AIRTABLE_SUPPLIERS_TABLE = "Suppliers"
+DEFAULT_TIMEZONE = "Asia/Bangkok"
+LINE_OA_HANDLE = "@himaishop"
+LINE_OA_URL = "https://line.me/R/ti/p/@himaishop"
+REGISTER_PREFIX = "REGISTER HIMAI"
