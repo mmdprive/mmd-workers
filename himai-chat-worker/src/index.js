@@ -53,16 +53,15 @@ export default {
    CONFIG
 ========================= */
 
-const HIMAI_CUSTOMERS_TABLE_ID = "tblmNV3LP9kvXOzcU";
-const CONSOLE_INBOX_TABLE_ID = "tblFHmfpB2TTrzO2e";
-
 function getConfig(env) {
   return {
     appName: env.APP_NAME || "Himai Shop",
     lineOAHandle: env.LINE_OA_HANDLE || "@himaishop",
     lineOAUrl: env.LINE_OA_URL || "https://line.me/R/ti/p/@himaishop",
     registerPrefix: env.REGISTER_PREFIX || "REGISTER HIMAI",
-    suppliersTable: env.AIRTABLE_SUPPLIERS_TABLE || "Suppliers"
+    suppliersTable: env.AIRTABLE_SUPPLIERS_TABLE || "Suppliers",
+    himaiCustomersTableId: env.HIMAI_CUSTOMERS_TABLE_ID || "tblmNV3LP9kvXOzcU",
+    consoleInboxTableId: env.CONSOLE_INBOX_TABLE_ID || "tblFHmfpB2TTrzO2e"
   };
 }
 
@@ -281,7 +280,7 @@ async function handleShopSignup(request, env) {
   if (normalizedEmail) {
     existingRecord = await findHimaiCustomerByField(
       env,
-      HIMAI_CUSTOMERS_TABLE_ID,
+      cfg.himaiCustomersTableId,
       "email",
       normalizedEmail
     );
@@ -290,7 +289,7 @@ async function handleShopSignup(request, env) {
   if (!existingRecord && normalizedPhone) {
     existingRecord = await findHimaiCustomerByField(
       env,
-      HIMAI_CUSTOMERS_TABLE_ID,
+      cfg.himaiCustomersTableId,
       "phone",
       normalizedPhone
     );
@@ -303,7 +302,7 @@ async function handleShopSignup(request, env) {
     `User note: ${normalizedNote || "-"}`;
 
   if (existingRecord) {
-    await airtableRequest(env, HIMAI_CUSTOMERS_TABLE_ID, {
+    await airtableRequest(env, cfg.himaiCustomersTableId, {
       method: "PATCH",
       body: JSON.stringify({
         records: [
@@ -329,7 +328,7 @@ async function handleShopSignup(request, env) {
     });
 
     try {
-      await airtableRequest(env, CONSOLE_INBOX_TABLE_ID, {
+      await airtableRequest(env, cfg.consoleInboxTableId, {
         method: "POST",
         body: JSON.stringify({
           records: [
@@ -385,7 +384,7 @@ async function handleShopSignup(request, env) {
     });
   }
 
-  await airtableRequest(env, HIMAI_CUSTOMERS_TABLE_ID, {
+  await airtableRequest(env, cfg.himaiCustomersTableId, {
     method: "POST",
     body: JSON.stringify({
       records: [
@@ -410,7 +409,7 @@ async function handleShopSignup(request, env) {
   });
 
   try {
-    await airtableRequest(env, CONSOLE_INBOX_TABLE_ID, {
+    await airtableRequest(env, cfg.consoleInboxTableId, {
       method: "POST",
       body: JSON.stringify({
         records: [
