@@ -266,6 +266,24 @@ payments-worker.malemodel-bkk.workers.dev}/v1/pay/token`, {
         return withCors(req, env, json({ ok: true, model: out }));
       }
 
+      // POST /v1/admin/job/create
+      // POST /v1/admin/jobs/create-session (compat alias)
+      // POST /v1/admin/create-session      (compat alias)
+      if (
+        method === "POST" &&
+        (path === "/v1/admin/job/create" ||
+          path === "/v1/admin/jobs/create-session" ||
+          path === "/v1/admin/create-session")
+      ) {
+        const body = await safeJson(req);
+        try {
+          const out = await createAdminSession(env, body || {});
+          return withCors(req, env, json({ ok: true, ...out }));
+        } catch (e) {
+          return withCors(req, env, json({ ok: false, error: String(e?.message || e || "create_session_failed") }, 500));
+        }
+      }
+
       return withCors(req, env, json({ ok: false, error: "not_found" }, 404));
     }
 
@@ -541,4 +559,104 @@ async function telegramInternalSend(env, payload) {
 
   if (!res.ok) return { ok: false, status: res.status, data };
   return { ok: true, data };
+}
+
+/* =========================
+   Session / job creation
+========================= */
+function requiredString(value, fieldName) {
+  const out = String(value || "").trim();
+  if (!out) throw new Error(`missing_${fieldName}`);
+  return out;
+}
+
+function requiredNumber(value, fieldName) {
+  const n = Number(String(value ?? "").replace(/,/g, "").trim());
+  if (!Number.isFinite(n)) throw new Error(`missing_${fieldName}`);
+  return n;
+}
+
+function absoluteUrl(value, base) {
+  if (!value) return base;
+  try {
+    return new URL(value).toString();
+  } catch (_) {
+    return new URL(value, base).toString();
+  }
+}
+
+async function createAdminSession(env, body) {
+  const client_name = requiredString(body.client_name, "client_name");
+  const model_name = requiredString(body.model_name, "model_name");
+  const job_date = requiredString(body.job_date, "job_date");
+  const start_time = requiredString(body.start_time, "start_time");
+  const end_time = requiredString(body.end_time, "end_time");
+  const location_name = requiredString(body.location_name, "location_name");
+  const amount_thb = requiredNumber(body.amount_thb, "amount_thb");
+
+  const job_type = String(body.job_type || "booking").trim();
+  const google_map_url = String(body.google_map_url || "").trim();
+  const note = String(body.note || body.notes || "").trim();
+  const payment_type = String(body.payment_type || "full").trim();
+  const payment_method = String(body.payment_method || "promptpay").trim();
+
+  const webBase = String(env.WEB_BASE_URL || "https://mmdbkk.com").replace(/\/+$/, "");
+  const confirm_page = absoluteUrl(body.confirm_page || "/confirm/job-confirmation", webBase);
+  const model_confirm_page = absoluteUrl(body.model_confirm_page || "/confirm/job-model", webBase);
+
+  const payload = {
+    client_name,
+    model_name,
+    job_type,
+    job_date,
+    start_time,
+    end_time,
+    location_name,
+    google_map_url,
+    amount_thb,
+    payment_type,
+    payment_method,
+    note,
+    confirm_page,
+    model_confirm_page,
+  };
+
+  const base = String(env.PAYMENTS_BASE_URL || env.PAYMENTS_WORKER_BASE_URL || "").replace(/\/+$/, "");
+  if (!base) throw new Error("missing_PAYMENTS_BASE_URL");
+
+  const r = await fetch(`${base}/v1/confirm/link`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(env.CONFIRM_KEY ? { "X-Confirm-Key": env.CONFIRM_KEY } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const minted = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(minted?.error || minted?.message || `payments_worker_http_${r.status}`);
+
+  const session_id = minted.session_id || minted.sessionId || "";
+  const payment_ref = minted.payment_ref || minted.paymentRef || "";
+  const customer_confirmation_url =
+    minted.customer_confirmation_url ||
+    minted.confirmation_url ||
+    (minted.customer_t ? `${confirm_page}?t=${encodeURIComponent(minted.customer_t)}` : "") ||
+    (minted.t ? `${confirm_page}?t=${encodeURIComponent(minted.t)}` : "");
+  const model_confirmation_url =
+    minted.model_confirmation_url ||
+    (minted.model_t ? `${model_confirm_page}?t=${encodeURIComponent(minted.model_t)}` : "") ||
+    (minted.t ? `${model_confirm_page}?t=${encodeURIComponent(minted.t)}` : "");
+
+  if (!customer_confirmation_url) throw new Error("missing_customer_confirmation_url");
+  if (!model_confirmation_url) throw new Error("missing_model_confirmation_url");
+
+  return {
+    session_id,
+    payment_ref,
+    customer_confirmation_url,
+    model_confirmation_url,
+    raw: minted,
+  };
 }
