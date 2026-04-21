@@ -3,8 +3,11 @@ import {
   buildImmigrationLinkContext,
   canReadAirtable,
   confirmCustomerBookingToAirtable,
+  intakeLineClientUpsert,
   listRecordsFromAirtable,
   listSessionsFromAirtable,
+  patchClientMemberstackId,
+  previewLineClientUpsert,
   syncRecordsToAirtable,
   writeLinkAuditRecord,
 } from "./lib/airtable";
@@ -12,16 +15,22 @@ import { buildAbsoluteUrl, generateInviteLink, parseInviteIdentity, verifyInvite
 import { badRequest, internalError, json, makeMeta, redirect, unauthorized } from "./lib/response";
 import { seedLineInboxRecords, seedLogs, seedSessions } from "./lib/seed";
 import type {
+  CreateJobRequest,
+  CreateJobResponse,
   CustomerBookingConfirmRequest,
   CustomerBookingConfirmResponse,
   ExperienceContract,
   Env,
   HealthResponse,
+  ImmigrationLinkContext,
   ImmigrationGetResponse,
   ImmigrationIntakeRequest,
   ImmigrationIntakeResponse,
   ImmigrationLinksRequest,
   ImmigrationLinksResponse,
+  LineClientIntakeRequest,
+  LineClientIntakeResponse,
+  LineClientPreviewResponse,
   ImmigrationPromoteRequest,
   ImmigrationPromoteResponse,
   ImmigrationPromotionRecord,
@@ -31,6 +40,7 @@ import type {
   InviteRole,
   LineInboxListResponse,
   LogsResponse,
+  Meta,
   MigrationRecord,
   InviteResolveResponse,
   InvitePrefill,
@@ -44,7 +54,11 @@ import type {
 
 const VERSION = "v0-mvp";
 const CANONICAL = {
+  ping: "/ping",
   health: "/v1/immigrate/health",
+  linePreview: "/v1/immigrate/line/preview",
+  lineIntake: "/v1/immigrate/line/intake",
+  createJob: "/v1/admin/create-job",
   list: "/v1/immigrate/line-inbox",
   refresh: "/v1/immigrate/line-inbox/refresh-status",
   sync: "/v1/immigrate/line-inbox/sync-airtable",
@@ -69,11 +83,13 @@ const CONTROL_ROOM = {
 } as const;
 
 const ADMIN_JOBS = {
-  createSession: "/internal/admin/jobs/create-session",
+  createSession: "/internal/admin/create-session",
+  createSessionLegacy: "/internal/admin/jobs/create-session",
 } as const;
 
 const JOBS = {
   root: "/internal/jobs",
+  createJob: "/internal/jobs/create-job",
   createLinks: "/internal/jobs/create-links",
   createInvite: "/internal/jobs/create-invite-link",
   customerConfirm: "/internal/jobs/customer-confirm",
@@ -81,6 +97,7 @@ const JOBS = {
 
 const PUBLIC = {
   onboardingResolve: "/member/api/invite/resolve",
+  renewalStatus: "/member/api/renewal/status",
   renewalIntake: "/member/api/renewal/intake",
   customerConfirm: "/member/api/jobs/customer-confirm",
 } as const;
@@ -269,6 +286,18 @@ function promoteRecord(record: ImmigrationPromotionRecord): ImmigrationPromotion
 
 function isIntakeRoute(pathname: string): boolean {
   return pathname === CANONICAL.intake;
+}
+
+function isLinePreviewRoute(pathname: string): boolean {
+  return pathname === CANONICAL.linePreview;
+}
+
+function isLineIntakeRoute(pathname: string): boolean {
+  return pathname === CANONICAL.lineIntake;
+}
+
+function isCreateJobRoute(pathname: string): boolean {
+  return pathname === CANONICAL.createJob;
 }
 
 function isPromoteRoute(pathname: string): boolean {
@@ -482,14 +511,251 @@ function publicJson(request: Request, env: Env, data: unknown, init?: ResponseIn
   return withCors(request, env, json(data, init));
 }
 
+type PublicRenewalStatusRequest = {
+  email?: string;
+  email_primary?: string;
+  email_secondary?: string;
+  nickname?: string;
+  display_name?: string;
+  line_user_id?: string;
+  line_display_name?: string;
+  memberstack_id?: string;
+  include_context?: boolean;
+  source_page?: string;
+  search_priority?: string;
+};
+
+type PublicRenewalStatusResponse = {
+  ok: true;
+  data: {
+    found: boolean;
+    email: string;
+    member_id: string;
+    memberstack_id: string;
+    display_name: string;
+    membership_status: string;
+    current_tier: string;
+    expire_at: string;
+    total_sessions: number;
+    total_spend_thb: number;
+    points_balance: number;
+    points_total_earned: number;
+    points_total_redeemed: number;
+    service_history_summary: string;
+    promotion_status: string;
+    pricing_decision_thb: number;
+    pricing_reason: string;
+    line_context_found: boolean;
+    context?: ImmigrationLinkContext;
+  };
+  meta: Meta;
+};
+
+type RenewalStatusProjection = PublicRenewalStatusResponse["data"];
+
+function sumTotalSpendFromContext(context: ImmigrationLinkContext): number {
+  return (context.service_history || []).reduce((sum, row) => {
+    const amount = Number(row.amount_total_thb || 0);
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+}
+
+function deriveMembershipStatus(input: {
+  current_status_latest_session_status: string;
+  membership_status: string;
+  expire_at?: string;
+  found: boolean;
+}): string {
+  if (!input.found) return "not_found";
+  const raw = toStr(input.membership_status).toLowerCase();
+  if (raw) return raw;
+
+  const expireAt = toStr(input.expire_at);
+  if (expireAt) {
+    const t = new Date(expireAt).getTime();
+    if (Number.isFinite(t)) {
+      return t >= Date.now() ? "active" : "expired";
+    }
+  }
+
+  const latest = toStr(input.current_status_latest_session_status).toLowerCase();
+  if (["confirmed", "en_route", "arrived", "met", "work_started"].includes(latest)) {
+    return "active";
+  }
+
+  return "found";
+}
+
+function derivePricingDecision(
+  totalSpendTHB: number,
+  currentTier: string,
+  intentHint?: string,
+): { pricing_decision_thb: number; pricing_reason: string } {
+  const tier = toStr(currentTier).toLowerCase();
+  const intent = toStr(intentHint).toLowerCase();
+
+  if (totalSpendTHB >= 100000) {
+    return { pricing_decision_thb: 0, pricing_reason: "service_spend_gte_100000" };
+  }
+
+  if (totalSpendTHB >= 15000) {
+    return {
+      pricing_decision_thb: 2000,
+      pricing_reason: "service_spend_between_15000_and_99999",
+    };
+  }
+
+  if (intent === "upgrade") {
+    return { pricing_decision_thb: 2000, pricing_reason: "upgrade_default" };
+  }
+
+  if (["premium", "vip", "svip", "blackcard"].includes(tier)) {
+    return {
+      pricing_decision_thb: 2000,
+      pricing_reason: "existing_paid_tier_but_below_free_threshold",
+    };
+  }
+
+  return { pricing_decision_thb: 2500, pricing_reason: "gap_or_new_or_low_history" };
+}
+
+async function buildRenewalStatusProjection(
+  env: Env,
+  input: {
+    email?: string;
+    display_name?: string;
+    line_user_id?: string;
+    memberstack_id?: string;
+    current_tier?: string;
+    target_tier?: string;
+    membership_status?: string;
+    expire_at?: string;
+    intent_hint?: string;
+  },
+): Promise<{ projection: RenewalStatusProjection; context: ImmigrationLinkContext }> {
+  const context = await buildImmigrationLinkContext(env, {
+    line_user_id: input.line_user_id,
+    memberstack_id: input.memberstack_id,
+    email: input.email,
+    display_name: input.display_name,
+    current_tier: input.current_tier,
+    target_tier: input.target_tier,
+    membership_status: input.membership_status,
+  });
+
+  const totalSpendTHB = sumTotalSpendFromContext(context);
+  const totalSessions = Array.isArray(context.service_history) ? context.service_history.length : 0;
+  const lineContextFound = Array.isArray(context.line_history) && context.line_history.length > 0;
+  const memberstackId = toStr(context.membership?.memberstack_id || input.memberstack_id);
+  const found = Boolean(memberstackId || totalSessions > 0 || lineContextFound);
+  const membershipExpireAt = toStr(context.membership?.expire_at || input.expire_at);
+  const membershipStatus = deriveMembershipStatus({
+    current_status_latest_session_status: context.current_status?.latest_session_status || "",
+    membership_status: toStr(context.membership?.status || input.membership_status),
+    expire_at: membershipExpireAt,
+    found,
+  });
+  const currentTier = toStr(context.membership?.current_tier || input.current_tier);
+  const pricing = derivePricingDecision(totalSpendTHB, currentTier, input.intent_hint);
+  const normalizedContext: ImmigrationLinkContext = {
+    ...context,
+    membership: {
+      ...context.membership,
+      status: found ? membershipStatus : "not_found",
+      expire_at: membershipExpireAt,
+    },
+  };
+
+  return {
+    projection: {
+      found,
+      email: toStr(input.email).toLowerCase(),
+      member_id: memberstackId,
+      memberstack_id: memberstackId,
+      display_name: toStr(input.display_name),
+      membership_status: found ? membershipStatus : "not_found",
+      current_tier: currentTier,
+      expire_at: membershipExpireAt,
+      total_sessions: totalSessions,
+      total_spend_thb: totalSpendTHB,
+      points_balance: Number(context.points?.balance || 0),
+      points_total_earned: Number(context.points?.total_earned || 0),
+      points_total_redeemed: Number(context.points?.total_redeemed || 0),
+      service_history_summary: toStr(context.service_history_summary),
+      promotion_status: lineContextFound ? "identity_checked" : "",
+      pricing_decision_thb: pricing.pricing_decision_thb,
+      pricing_reason: pricing.pricing_reason,
+      line_context_found: lineContextFound,
+      context: normalizedContext,
+    },
+    context: normalizedContext,
+  };
+}
+
+async function handlePublicRenewalStatus(request: Request, env: Env): Promise<Response> {
+  const meta = makeMeta(request);
+  const body = (await request.json().catch(() => null)) as PublicRenewalStatusRequest | null;
+
+  if (!body || typeof body !== "object") {
+    return publicJson(
+      request,
+      env,
+      { ok: false, error: { code: "INVALID_INPUT", message: "valid renewal status payload is required" }, meta },
+      { status: 400 },
+    );
+  }
+
+  const emailPrimary = toStr(body.email_primary || body.email).toLowerCase();
+  const emailSecondary = toStr(body.email_secondary).toLowerCase();
+  const email = emailPrimary || emailSecondary;
+
+  if (!email) {
+    return publicJson(
+      request,
+      env,
+      { ok: false, error: { code: "INVALID_INPUT", message: "email or email_primary is required" }, meta },
+      { status: 400 },
+    );
+  }
+
+  if (!isValidEmailAddress(email)) {
+    return publicJson(
+      request,
+      env,
+      { ok: false, error: { code: "INVALID_INPUT", message: "email format is invalid" }, meta },
+      { status: 400 },
+    );
+  }
+
+  const displayName = toStr(body.display_name || body.nickname || body.line_display_name);
+  const { projection, context } = await buildRenewalStatusProjection(env, {
+    email,
+    display_name: displayName,
+    line_user_id: toStr(body.line_user_id),
+    memberstack_id: toStr(body.memberstack_id),
+    intent_hint: toStr(body.search_priority) === "upgrade" ? "upgrade" : "renewal",
+  });
+
+  return publicJson(request, env, {
+    ok: true,
+    data: body.include_context ? projection : { ...projection, context: undefined },
+    meta,
+  } satisfies PublicRenewalStatusResponse);
+}
+
 type PublicRenewalBody = {
   display_name?: string;
   name?: string;
+  nickname?: string;
   email?: string;
+  email_primary?: string;
+  email_secondary?: string;
   line_id?: string;
   line_user_id?: string;
   phone?: string;
   contact?: string;
+  telegram?: string;
+  telegram_username?: string;
   member_ref?: string;
   member_id?: string;
   memberstack_id?: string;
@@ -508,6 +774,12 @@ type PublicRenewalBody = {
   note?: string;
   manual_note?: string;
   raw_json?: string;
+  model_name?: string;
+  model_record_id?: string;
+  telegram_chat_id?: string;
+  telegram_message_thread_id?: string | number;
+  notify_telegram?: boolean | string;
+  [key: string]: unknown;
 };
 
 function buildPublicRenewalPayload(body: PublicRenewalBody): ImmigrationIntakeRequest {
@@ -547,7 +819,7 @@ function buildPublicRenewalPayload(body: PublicRenewalBody): ImmigrationIntakeRe
       target_tier: targetTier || undefined,
     },
     notes: {
-      manual_note_raw: historyNote || operatorSummary,
+      manual_note_raw: historyNote || "",
       operator_summary: operatorSummary || undefined,
     },
     payload_json: {
@@ -562,6 +834,63 @@ function buildPublicRenewalPayload(body: PublicRenewalBody): ImmigrationIntakeRe
       admin_context: toStr(body.admin_context),
       raw_json: toStr(body.raw_json),
     },
+  };
+}
+
+function isValidEmailAddress(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function buildRenewalLineIntakePayload(
+  body: PublicRenewalBody,
+  payload: ImmigrationIntakeRequest,
+  immigrationId: string,
+): LineClientIntakeRequest {
+  const emailPrimary = toStr(body.email_primary || body.email);
+  const emailSecondary = toStr(body.email_secondary);
+  const emailCandidates = [emailPrimary, emailSecondary].filter(Boolean);
+  const phone = toStr(body.phone || body.contact);
+  const telegramUsername = toStr(body.telegram_username || body.telegram);
+  const nickname = toStr(body.nickname || body.display_name || body.name);
+  const messageThreadId = toStr(body.telegram_message_thread_id) || "61";
+
+  return {
+    immigration_id: immigrationId,
+    memberstack_id: toStr(body.memberstack_id || body.member_id || body.member_ref),
+    source_channel: payload.source_channel,
+    intake_source: payload.source_channel === "renewal" ? "renewal_web" : "line",
+    display_name: toStr(payload.identity.full_name),
+    nickname: nickname || toStr(payload.identity.full_name),
+    line_user_id: toStr(body.line_user_id),
+    line_id: toStr(body.line_id),
+    email: emailPrimary || toStr(payload.payload_json?.email),
+    member_email: emailPrimary || toStr(payload.payload_json?.email),
+    phone,
+    member_phone: phone,
+    model_name: toStr(body.model_name),
+    model_record_id: toStr(body.model_record_id),
+    telegram_chat_id: toStr(body.telegram_chat_id),
+    telegram_message_thread_id: messageThreadId,
+    notify_telegram: body.notify_telegram !== false && toStr(body.notify_telegram).toLowerCase() !== "false",
+    manual_note: toStr(payload.notes.manual_note_raw),
+    operator_summary: toStr(payload.notes.operator_summary),
+    payload_json: {
+      ...(payload.payload_json && typeof payload.payload_json === "object" ? payload.payload_json : {}),
+      source_channel: payload.source_channel,
+      intake_source: payload.source_channel === "renewal" ? "renewal_web" : "line",
+      email_primary: emailPrimary,
+      email_secondary: emailSecondary,
+      email_candidates: emailCandidates,
+      telegram_username: telegramUsername,
+      renewal_flow: toStr(body.flow),
+      renewal_source_page: toStr(body.source_page || body.page),
+      requested_goal: toStr(body.desired_goal),
+      payment_method_label: toStr(body.payment_method_label),
+      legacy_membership_proof_name: toStr(body.legacy_membership_proof_name),
+      legacy_membership_proof_present: Boolean(body.legacy_membership_proof_present),
+      confirmation_mode: toStr(body.confirmation_mode),
+    },
+    original_payload: Object.fromEntries(Object.entries(body)),
   };
 }
 
@@ -618,13 +947,23 @@ async function handlePublicRenewalIntake(request: Request, env: Env): Promise<Re
   }
 
   const payload = buildPublicRenewalPayload(rawBody);
-  if (!toStr(payload.notes.manual_note_raw)) {
+  const validationErrors: string[] = [];
+  const fullName = toStr(payload.identity.full_name);
+  const email = toStr(payload.payload_json?.email).toLowerCase();
+  const historyNote = toStr(payload.notes.manual_note_raw);
+
+  if (!fullName) validationErrors.push("display_name or name is required");
+  if (!email) validationErrors.push("email is required");
+  else if (!isValidEmailAddress(email)) validationErrors.push("email format is invalid");
+  if (!historyNote) validationErrors.push("service_history_note or note is required");
+
+  if (validationErrors.length) {
     return publicJson(
       request,
       env,
       {
         ok: false,
-        error: { code: "INVALID_INPUT", message: "service_history_note or note is required" },
+        error: { code: "INVALID_INPUT", message: validationErrors.join("; ") },
         meta,
       },
       { status: 400 },
@@ -635,22 +974,34 @@ async function handlePublicRenewalIntake(request: Request, env: Env): Promise<Re
     promotion_status: "archived_raw",
   });
   const promotePreview = promoteRecord(record);
-  const migrationRecord = buildRenewalMigrationRecord(payload, record.immigration_id);
+  const renewalLinePayload = buildRenewalLineIntakePayload(rawBody, payload, record.immigration_id);
 
-  let sync:
+  let intakeResult: Awaited<ReturnType<typeof intakeLineClientUpsert>> | null = null;
+  let promotion:
     | {
-        mode: "mock" | "airtable";
-        results: Array<{
-          migration_id: string;
-          airtable_record_id?: string;
-          client_id?: string | null;
-          migration_status: "synced_to_airtable";
-        }>;
+        attempted: boolean;
+        ok: boolean;
+        member_id: string;
+        promotion_status: string;
+        created_new_member: boolean;
+        error?: string;
+      }
+    | null = null;
+  let links: Awaited<ReturnType<typeof createLineLinksAfterPromotion>> | null = null;
+  let telegram:
+    | {
+        attempted: boolean;
+        ok: boolean;
+        status?: number;
+        error?: string;
       }
     | null = null;
 
   try {
-    sync = await syncRecordsToAirtable(env, [migrationRecord]);
+    intakeResult = await intakeLineClientUpsert(env, renewalLinePayload);
+    promotion = await promoteLineClientAfterIntake(env, renewalLinePayload, intakeResult);
+    links = await createLineLinksAfterPromotion(env, renewalLinePayload, intakeResult, promotion);
+    telegram = await notifyTelegramForLineIntake(env, renewalLinePayload, promotion, links);
   } catch (error) {
     return publicJson(
       request,
@@ -658,8 +1009,8 @@ async function handlePublicRenewalIntake(request: Request, env: Env): Promise<Re
       {
         ok: false,
         error: {
-          code: "AIRTABLE_SYNC_FAILED",
-          message: error instanceof Error ? error.message : "Airtable sync failed",
+          code: "RENEWAL_INTAKE_PIPELINE_FAILED",
+          message: error instanceof Error ? error.message : "Renewal intake pipeline failed",
         },
         meta,
       },
@@ -672,15 +1023,32 @@ async function handlePublicRenewalIntake(request: Request, env: Env): Promise<Re
     data: {
       immigration_id: record.immigration_id,
       service_history_summary: record.service_history_summary,
-      promotion_status: record.promotion_status,
-      member_id_preview: promotePreview.promoted_member_id || "",
-      created_new_member_preview: Boolean(promotePreview.created_new_member),
-      sync: sync
+      promotion_status: promotion?.promotion_status || record.promotion_status,
+      member_id_preview: promotion?.member_id || promotePreview.promoted_member_id || "",
+      created_new_member_preview: promotion?.created_new_member ?? Boolean(promotePreview.created_new_member),
+      sync: intakeResult
         ? {
-            mode: sync.mode,
-            result: sync.results[0] || null,
+            mode: intakeResult.mode,
+            result: {
+              migration_id: intakeResult.immigration_id,
+              airtable_record_id: intakeResult.inbox_record?.airtable_record_id || "",
+              client_id: intakeResult.client?.airtable_record_id || null,
+              migration_status: "synced_to_airtable" as const,
+            },
           }
         : null,
+      airtable: intakeResult
+        ? {
+            action: intakeResult.action,
+            target_table: intakeResult.target_table,
+            existing_match: intakeResult.existing_match,
+            client: intakeResult.client,
+            inbox_record: intakeResult.inbox_record,
+          }
+        : null,
+      promotion: promotion || null,
+      links: links || null,
+      telegram: telegram || null,
     },
     meta,
   });
@@ -799,6 +1167,392 @@ async function handleIntake(request: Request): Promise<Response> {
   };
 
   return json(body);
+}
+
+async function handleLinePreview(request: Request, env: Env): Promise<Response> {
+  const meta = makeMeta(request);
+  const payload = (await request.json().catch(() => null)) as LineClientIntakeRequest | null;
+
+  if (!payload || typeof payload !== "object") {
+    return badRequest("valid LINE preview payload is required", meta);
+  }
+
+  const preview = await previewLineClientUpsert(env, payload);
+  const body: LineClientPreviewResponse = {
+    ok: true,
+    data: preview,
+    meta,
+  };
+
+  return json(body);
+}
+
+async function promoteLineClientAfterIntake(
+  env: Env,
+  payload: LineClientIntakeRequest,
+  intakeResult: Awaited<ReturnType<typeof intakeLineClientUpsert>>,
+) {
+  if (!env.ADMIN_WORKER_BASE_URL) {
+    return {
+      attempted: false,
+      ok: false,
+      member_id: "",
+      promotion_status: "needs_manual_review",
+      created_new_member: false,
+      error: "missing_ADMIN_WORKER_BASE_URL",
+    };
+  }
+
+  const promotionPayload = {
+    immigration_id: intakeResult.immigration_id,
+    source_channel: "line",
+    intent: "contact_import",
+    identity: {
+      member_id: toStr(payload.memberstack_id),
+      line_id: toStr(payload.line_id || payload.identity?.line_id),
+      line_user_id: toStr(payload.line_user_id || payload.identity?.line_user_id),
+      full_name: toStr(payload.display_name || payload.identity?.display_name || payload.nickname),
+      phone: toStr(payload.member_phone || payload.phone || payload.identity?.member_phone || payload.identity?.phone),
+    },
+    membership: {
+      current_tier: "",
+      target_tier: "",
+    },
+    notes: {
+      manual_note_raw: toStr(payload.manual_note || payload.notes?.manual_note || "LINE legacy identity intake"),
+      operator_summary: toStr(payload.operator_summary || payload.notes?.operator_summary),
+    },
+    payload_json: {
+      ...(payload.payload_json && typeof payload.payload_json === "object" ? payload.payload_json : {}),
+      ...(payload.original_payload && typeof payload.original_payload === "object" ? payload.original_payload : {}),
+      email: toStr(payload.member_email || payload.email || payload.identity?.member_email || payload.identity?.email),
+      member_email: toStr(payload.member_email || payload.email || payload.identity?.member_email || payload.identity?.email),
+      phone: toStr(payload.member_phone || payload.phone || payload.identity?.member_phone || payload.identity?.phone),
+      member_phone: toStr(payload.member_phone || payload.phone || payload.identity?.member_phone || payload.identity?.phone),
+      display_name: toStr(payload.display_name || payload.identity?.display_name),
+      nickname: toStr(payload.nickname || payload.identity?.nickname),
+      line_user_id: toStr(payload.line_user_id || payload.identity?.line_user_id),
+      line_id: toStr(payload.line_id || payload.identity?.line_id),
+      immigration_id: intakeResult.immigration_id,
+    },
+    service_history_summary: "",
+    promotion_policy: {
+      create_if_missing: true,
+      overwrite_if_exists: false,
+      archive_raw_notes: true,
+    },
+  };
+
+  const promotePath = "/v1/admin/members/promote-immigration";
+  const promoteUrl = env.ADMIN_WORKER_BASE_URL
+    ? `${env.ADMIN_WORKER_BASE_URL.replace(/\/+$/, "")}${promotePath}`
+    : promotePath;
+  const requestInit: RequestInit = {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${env.INTERNAL_TOKEN}`,
+    },
+    body: JSON.stringify(promotionPayload),
+  };
+  const response = env.ADMIN_WORKER
+    ? await env.ADMIN_WORKER.fetch(
+        new Request(`https://admin-worker.internal${promotePath}`, requestInit),
+      )
+    : await fetch(promoteUrl, requestInit);
+
+  const responseText = await response.text();
+  const responseJson = (() => {
+    try {
+      return JSON.parse(responseText) as
+        | { data?: { member_id?: string; promotion_status?: string; created_new_member?: boolean }; error?: unknown }
+        | null;
+    } catch {
+      return null;
+    }
+  })() as
+    | { data?: { member_id?: string; promotion_status?: string; created_new_member?: boolean }; error?: unknown }
+    | null;
+
+  if (!response.ok) {
+    const responseSnippet = toStr(responseText).slice(0, 240);
+    return {
+      attempted: true,
+      ok: false,
+      member_id: "",
+      promotion_status: "promotion_failed",
+      created_new_member: false,
+      error:
+        toStr((responseJson as { error?: { message?: string } } | null)?.error?.message) ||
+        toStr((responseJson as { error?: string } | null)?.error) ||
+        `promotion_http_${response.status} via ${promoteUrl}${responseSnippet ? ` :: ${responseSnippet}` : ""}`,
+    };
+  }
+
+  const promotedMemberId = toStr(responseJson?.data?.member_id);
+  if (promotedMemberId && intakeResult.client.airtable_record_id) {
+    const patchedClient = await patchClientMemberstackId(
+      env,
+      intakeResult.client.airtable_record_id,
+      promotedMemberId,
+    );
+
+    intakeResult.client.fields = {
+      ...intakeResult.client.fields,
+      ...(patchedClient.fields || {}),
+    };
+  }
+
+  return {
+    attempted: true,
+    ok: true,
+    member_id: promotedMemberId,
+    promotion_status: toStr(responseJson?.data?.promotion_status) || "promoted",
+    created_new_member: Boolean(responseJson?.data?.created_new_member),
+  };
+}
+
+async function createLineLinksAfterPromotion(
+  env: Env,
+  payload: LineClientIntakeRequest,
+  intakeResult: Awaited<ReturnType<typeof intakeLineClientUpsert>>,
+  promotion: {
+    attempted: boolean;
+    ok: boolean;
+    member_id: string;
+  } | null,
+) {
+  if (!promotion?.ok || !toStr(promotion.member_id)) {
+    return null;
+  }
+
+  return await buildLinksBundle(env, {
+    immigration_id: intakeResult.immigration_id,
+    display_name: toStr(payload.display_name || payload.identity?.display_name || payload.nickname),
+    email: toStr(payload.member_email || payload.email || payload.identity?.member_email || payload.identity?.email).toLowerCase(),
+    line_user_id: toStr(payload.line_user_id || payload.identity?.line_user_id),
+    memberstack_id: toStr(promotion.member_id),
+    model_name: toStr(payload.model_name),
+    model_record_id: toStr(payload.model_record_id),
+    expires_in_hours: Number(payload.expires_in_hours || 24 * 7),
+  });
+}
+
+async function notifyTelegramForLineIntake(
+  env: Env,
+  payload: LineClientIntakeRequest,
+  promotion: {
+    attempted: boolean;
+    ok: boolean;
+    member_id: string;
+  } | null,
+  links: Awaited<ReturnType<typeof buildLinksBundle>> | null,
+) {
+  if (payload.notify_telegram === false) {
+    return {
+      attempted: false,
+      ok: false,
+      error: "telegram_disabled_by_payload",
+    };
+  }
+
+  if (!promotion?.ok || !links) {
+    return {
+      attempted: false,
+      ok: false,
+      error: "missing_promotion_or_links",
+    };
+  }
+
+  if (!env.ADMIN_WORKER_BASE_URL && !env.ADMIN_WORKER) {
+    return {
+      attempted: false,
+      ok: false,
+      error: "missing_admin_worker_binding",
+    };
+  }
+
+  const lineUserId = toStr(payload.line_user_id || payload.identity?.line_user_id);
+  const displayName = toStr(payload.display_name || payload.identity?.display_name || payload.nickname) || "Client";
+  const modelName = toStr(payload.model_name) || `model_${links.immigration_id.slice(-6)}`;
+  const intakeSource = toStr(payload.payload_json?.source_channel || payload.payload_json?.intake_source).toLowerCase();
+  const isRenewalIntake = intakeSource === "renewal" || intakeSource === "renewal_web"
+    || Boolean(toStr(payload.payload_json?.renewal_source_page));
+  const lines = [
+    isRenewalIntake ? "<b>RENEWAL INTAKE PROMOTED</b>" : "<b>LINE INTAKE PROMOTED</b>",
+    `Client: <b>${escapeHtml(displayName)}</b>`,
+    `Model: <b>${escapeHtml(modelName)}</b>`,
+    `Member ID: <code>${escapeHtml(toStr(promotion.member_id))}</code>`,
+    !isRenewalIntake && lineUserId ? `LINE User ID: <code>${escapeHtml(lineUserId)}</code>` : "",
+    `Immigration ID: <code>${escapeHtml(links.immigration_id)}</code>`,
+    "",
+    `Member Link: ${escapeHtml(links.customer_url)}`,
+    `Model Link: ${escapeHtml(links.model_url)}`,
+    "",
+    `Member Dashboard: ${escapeHtml(links.customer_dashboard_url)}`,
+    `Model Dashboard: ${escapeHtml(links.model_dashboard_url)}`,
+  ].filter(Boolean);
+
+  const telegramPayload = {
+    chat_id: toStr(payload.telegram_chat_id),
+    message_thread_id: toStr(payload.telegram_message_thread_id),
+    text: lines.join("\n"),
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  };
+
+  const telegramPath = "/v1/admin/telegram/dm";
+  const telegramUrl = env.ADMIN_WORKER_BASE_URL
+    ? `${env.ADMIN_WORKER_BASE_URL.replace(/\/+$/, "")}${telegramPath}`
+    : telegramPath;
+  const requestInit: RequestInit = {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${env.INTERNAL_TOKEN}`,
+    },
+    body: JSON.stringify(telegramPayload),
+  };
+
+  const response = env.ADMIN_WORKER
+    ? await env.ADMIN_WORKER.fetch(
+        new Request(`https://admin-worker.internal${telegramPath}`, requestInit),
+      )
+    : await fetch(telegramUrl, requestInit);
+  const responseText = await response.text();
+  const responseJson = (() => {
+    try {
+      return JSON.parse(responseText) as
+        | { telegram?: { ok?: boolean; status?: number; error?: string; data?: unknown } }
+        | { error?: string }
+        | null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!response.ok) {
+    return {
+      attempted: true,
+      ok: false,
+      status: response.status,
+      error:
+        toStr((responseJson as { error?: string } | null)?.error) ||
+        `telegram_http_${response.status}`,
+    };
+  }
+
+  const telegramResult = (responseJson as { telegram?: { ok?: boolean; status?: number; error?: string } } | null)?.telegram;
+  return {
+    attempted: true,
+    ok: Boolean(telegramResult?.ok),
+    status: telegramResult?.status,
+    error: telegramResult?.ok ? undefined : toStr(telegramResult?.error) || "telegram_send_failed",
+  };
+}
+
+async function handleLineIntake(request: Request, env: Env): Promise<Response> {
+  const meta = makeMeta(request);
+  const payload = (await request.json().catch(() => null)) as LineClientIntakeRequest | null;
+
+  if (!payload || typeof payload !== "object") {
+    return badRequest("valid LINE intake payload is required", meta);
+  }
+
+  try {
+    const result = await intakeLineClientUpsert(env, payload);
+    const promotion = await promoteLineClientAfterIntake(env, payload, result);
+    const links = await createLineLinksAfterPromotion(env, payload, result, promotion);
+    const telegram = await notifyTelegramForLineIntake(env, payload, promotion, links);
+    const body: LineClientIntakeResponse = {
+      ok: true,
+      data: {
+        ...result,
+        promotion,
+        links,
+        telegram,
+      },
+      meta,
+    };
+
+    return json(body);
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: {
+          code: "LINE_INTAKE_FAILED",
+          message: error instanceof Error ? error.message : "LINE intake failed",
+        },
+        meta,
+      },
+      { status: 502 },
+    );
+  }
+}
+
+async function handleCreateJob(request: Request, env: Env): Promise<Response> {
+  const meta = makeMeta(request);
+  const payload = (await request.json().catch(() => null)) as CreateJobRequest | null;
+
+  if (!payload || typeof payload !== "object") {
+    return badRequest("valid create-job payload is required", meta);
+  }
+
+  const normalizedPayload: LineClientIntakeRequest = {
+    ...payload,
+    manual_note:
+      toStr(payload.manual_note) ||
+      toStr(payload.notes?.manual_note) ||
+      toStr(payload.manual_note_raw),
+  };
+
+  try {
+    const result = await intakeLineClientUpsert(env, normalizedPayload);
+    const promotion = await promoteLineClientAfterIntake(env, normalizedPayload, result);
+    const links = await createLineLinksAfterPromotion(env, normalizedPayload, result, promotion);
+    const telegram = await notifyTelegramForLineIntake(env, normalizedPayload, promotion, links);
+    const airtable = {
+      client_record_id: toStr(result.client?.airtable_record_id) || null,
+      inbox_record_id: toStr(result.inbox_record?.airtable_record_id) || null,
+    };
+
+    const body: CreateJobResponse = {
+      ok: true,
+      data: {
+        contract_version: "create_job_v1",
+        immigration_id: result.immigration_id,
+        promotion,
+        links,
+        telegram,
+        airtable,
+        artifacts: {
+          member_id: toStr(promotion?.member_id),
+          customer_url: toStr(links?.customer_url),
+          model_url: toStr(links?.model_url),
+          customer_dashboard_url: toStr(links?.customer_dashboard_url),
+          model_dashboard_url: toStr(links?.model_dashboard_url),
+          airtable,
+          telegram,
+        },
+      },
+      meta,
+    };
+
+    return json(body);
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: {
+          code: "CREATE_JOB_FAILED",
+          message: error instanceof Error ? error.message : "create job failed",
+        },
+        meta,
+      },
+      { status: 502 },
+    );
+  }
 }
 
 async function handlePromote(request: Request, env: Env): Promise<Response> {
@@ -1064,7 +1818,7 @@ async function buildLinksBundle(
     email: toStr(payload.email).toLowerCase(),
     line_user_id: toStr(payload.line_user_id),
     memberstack_id: toStr(payload.memberstack_id),
-    invite_page: toStr(payload.customer_onboarding_path) || "/member/onboarding",
+    invite_page: toStr(payload.customer_onboarding_path) || "/sigil/onboarding",
     expires_in_hours: expiresInHours,
     role: "customer",
     lane: "customer_onboarding",
@@ -1551,7 +2305,7 @@ async function handleResolveInvite(request: Request, env: Env): Promise<Response
 }
 
 function isHealthRoute(pathname: string): boolean {
-  return pathname === CANONICAL.health || pathname === CONTROL_ROOM.health;
+  return pathname === CANONICAL.ping || pathname === CANONICAL.health || pathname === CONTROL_ROOM.health;
 }
 
 function isListRoute(pathname: string): boolean {
@@ -1568,6 +2322,10 @@ function isSyncRoute(pathname: string): boolean {
 
 function isPublicRenewalIntakeRoute(pathname: string): boolean {
   return pathname === PUBLIC.renewalIntake;
+}
+
+function isPublicRenewalStatusRoute(pathname: string): boolean {
+  return pathname === PUBLIC.renewalStatus;
 }
 
 function isPublicCustomerConfirmRoute(pathname: string): boolean {
@@ -2278,7 +3036,7 @@ function renderCreateSessionPage(request: Request, session: AdminGateSession): R
         <div>
           <p class="kicker">Internal Admin / Jobs</p>
           <h1>Create Session</h1>
-          <p class="lead">Create a payment confirmation link for a session. This page sends the form to <code>/v1/admin/jobs/create-session</code> through the existing admin gate session, so no raw bearer token is exposed in the page itself.</p>
+          <p class="lead">Create a payment confirmation link for a session. This page sends the form to <code>/v1/admin/create-session</code> through the existing admin gate session, so no raw bearer token is exposed in the page itself.</p>
         </div>
         <button id="logout" class="ghost" type="button">Logout</button>
       </div>
@@ -2409,7 +3167,7 @@ function renderCreateSessionPage(request: Request, session: AdminGateSession): R
           setResult("Working…");
 
           try {
-            const response = await fetch("/v1/admin/jobs/create-session", {
+            const response = await fetch("/v1/admin/create-session", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),
@@ -2424,11 +3182,500 @@ function renderCreateSessionPage(request: Request, session: AdminGateSession): R
             setStatus("Session created successfully.", "success");
             setResult(data);
           } catch (error) {
-            setStatus("Unable to reach /v1/admin/jobs/create-session right now.", "error");
+            setStatus("Unable to reach /v1/admin/create-session right now.", "error");
             setResult({ ok: false, error: String(error && error.message ? error.message : error) });
           } finally {
             submit.disabled = false;
             submit.textContent = "Create Session";
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>`;
+
+  return new Response(html, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+function renderCreateJobPage(request: Request, session: AdminGateSession): Response {
+  const next = normalizeAdminNextPath(new URL(request.url).pathname + new URL(request.url).search);
+  const lineTemplate = `ส่งบรีฟตามนี้ได้เลยค่ะ
+
+1. ชื่อเล่น:
+2. วันที่ต้องการใช้บริการ:
+3. เวลาที่ต้องการ:
+4. สถานที่ / เขต:
+5. รูปแบบงาน:
+6. งบประมาณ:
+7. โมเดลที่สนใจ / สไตล์ที่ต้องการ:
+8. เบอร์ติดต่อ:
+9. อีเมล:
+10. รายละเอียดเพิ่มเติม:`;
+  const adminTemplate = `สรุปบรีฟสำหรับสร้าง job
+- ชื่อลูกค้า:
+- LINE user id:
+- เบอร์:
+- อีเมล:
+- รูปแบบงาน:
+- วันที่/เวลา:
+- โลเคชัน:
+- โมเดล:
+- งบ/มัดจำ:
+- หมายเหตุสำคัญ:`;
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MMD Admin Create Job</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #08070a;
+        --panel: rgba(19,15,24,.82);
+        --line: rgba(247,240,232,.14);
+        --text: #f7f0e8;
+        --muted: #c4b3a7;
+        --gold: #d1a66a;
+        --rose: #a45b5b;
+        --success: #9ad7b2;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 24px;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top, rgba(164,91,91,.18), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(95,127,132,.12), transparent 30%),
+          linear-gradient(180deg, #110d14 0%, #09080d 52%, #060507 100%);
+        font-family: Baskerville, "Iowan Old Style", Palatino, Georgia, serif;
+      }
+      .shell {
+        width: min(100%, 1180px);
+        margin: 0 auto;
+        padding: 32px;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--panel);
+        box-shadow: 0 24px 80px rgba(0,0,0,.35);
+        backdrop-filter: blur(18px);
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      .kicker {
+        margin: 0 0 10px;
+        color: var(--gold);
+        font: 600 .8rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif;
+        letter-spacing: .24em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2.1rem, 7vw, 4rem);
+        line-height: .95;
+        letter-spacing: -.04em;
+      }
+      .lead {
+        margin: 16px 0 0;
+        color: var(--muted);
+        line-height: 1.7;
+        max-width: 70ch;
+      }
+      .layout {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr);
+      }
+      form {
+        display: grid;
+        gap: 18px;
+        margin-top: 28px;
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .grid-full {
+        grid-column: 1 / -1;
+      }
+      label {
+        display: grid;
+        gap: 8px;
+        color: var(--gold);
+        font: 600 .78rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+      }
+      input, textarea {
+        width: 100%;
+        min-height: 52px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(7,6,10,.72);
+        color: var(--text);
+        font: inherit;
+      }
+      textarea { min-height: 124px; resize: vertical; }
+      .panel {
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: rgba(7,6,10,.46);
+      }
+      .panel h2 {
+        margin: 0 0 10px;
+        font-size: 1.1rem;
+        letter-spacing: .02em;
+      }
+      .panel p, .hint {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      button {
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(209,166,106,.36);
+        background: linear-gradient(135deg, rgba(209,166,106,.24), rgba(164,91,91,.28));
+        color: var(--text);
+        font: 600 .92rem/1 "Avenir Next Condensed", "Gill Sans", sans-serif;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .ghost { background: transparent; }
+      .status { min-height: 1.2em; margin: 0; color: var(--muted); }
+      .status.error { color: #f2b0b0; }
+      .status.success { color: var(--success); }
+      pre {
+        overflow: auto;
+        padding: 18px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: rgba(7,6,10,.72);
+        color: var(--text);
+        font: .88rem/1.6 SFMono-Regular, Consolas, Menlo, monospace;
+        white-space: pre-wrap;
+      }
+      .copy {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .check {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        color: var(--muted);
+        font-size: .92rem;
+      }
+      .check input {
+        min-height: 18px;
+        width: 18px;
+        padding: 0;
+      }
+      @media (max-width: 920px) {
+        .layout { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 720px) {
+        .grid { grid-template-columns: 1fr; }
+        .topbar { align-items: flex-start; flex-direction: column; }
+      }
+    </style>
+    ${adminGateBootstrapScript(session, next)}
+  </head>
+  <body>
+    <main class="shell">
+      <div class="topbar">
+        <div>
+          <p class="kicker">Internal Admin / Jobs</p>
+          <h1>Create Job</h1>
+          <p class="lead">Use this page when we receive a brief from LINE or collect the brief manually. The form submits to <code>/internal/jobs/create-job</code> and returns member promotion, customer/model links, Airtable IDs, and Telegram status in one response.</p>
+        </div>
+        <button id="logout" class="ghost" type="button">Logout</button>
+      </div>
+
+      <div class="layout">
+        <section>
+          <form id="create-job-form">
+            <div class="grid">
+              <label>
+                Display Name
+                <input id="display_name" name="display_name" type="text" required />
+              </label>
+              <label>
+                Nickname
+                <input id="nickname" name="nickname" type="text" />
+              </label>
+              <label>
+                LINE User ID
+                <input id="line_user_id" name="line_user_id" type="text" />
+              </label>
+              <label>
+                LINE ID
+                <input id="line_id" name="line_id" type="text" />
+              </label>
+              <label>
+                Email
+                <input id="email" name="email" type="email" />
+              </label>
+              <label>
+                Phone
+                <input id="phone" name="phone" type="text" />
+              </label>
+              <label>
+                Model Name
+                <input id="model_name" name="model_name" type="text" required />
+              </label>
+              <label>
+                Model Record ID
+                <input id="model_record_id" name="model_record_id" type="text" />
+              </label>
+              <label>
+                Current Tier
+                <input id="current_tier" name="current_tier" type="text" placeholder="standard" />
+              </label>
+              <label>
+                Target Tier
+                <input id="target_tier" name="target_tier" type="text" placeholder="premium" />
+              </label>
+              <label>
+                Expires In Hours
+                <input id="expires_in_hours" name="expires_in_hours" type="number" min="1" step="1" value="168" />
+              </label>
+              <label>
+                Telegram Thread ID
+                <input id="telegram_message_thread_id" name="telegram_message_thread_id" type="number" min="0" step="1" value="61" />
+              </label>
+              <label class="grid-full">
+                Manual Note Raw
+                <textarea id="manual_note_raw" name="manual_note_raw" required placeholder="สรุปบรีฟลูกค้า / รายละเอียดที่ตกลงกัน"></textarea>
+              </label>
+              <label class="grid-full">
+                Operator Summary
+                <textarea id="operator_summary" name="operator_summary" placeholder="summary สั้นสำหรับทีม"></textarea>
+              </label>
+              <label class="grid-full">
+                Payload JSON
+                <textarea id="payload_json" name="payload_json" placeholder='{"source":"line_brief","job_type":"private_vip","brief":"..."}'></textarea>
+              </label>
+            </div>
+
+            <label class="check">
+              <input id="notify_telegram" name="notify_telegram" type="checkbox" checked />
+              <span>Send Telegram notification after create-job</span>
+            </label>
+
+            <div class="actions">
+              <button id="submit" type="submit">Create Job</button>
+              <p id="status" class="status" role="status"></p>
+            </div>
+          </form>
+
+          <div class="copy" style="margin:14px 0 10px;">
+            <strong>Result Actions</strong>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button id="copy-customer-link" type="button" disabled>Copy customer link</button>
+              <button id="copy-model-link" type="button" disabled>Copy model link</button>
+            </div>
+          </div>
+
+          <pre id="result">Waiting for submission…</pre>
+        </section>
+
+        <aside class="panel-stack" style="display:grid;gap:18px;">
+          <section class="panel">
+            <div class="copy">
+              <h2>LINE Brief Template</h2>
+              <button type="button" data-copy="line-template">Copy</button>
+            </div>
+            <p class="hint">Send this to the customer when you want them to fill in the brief themselves.</p>
+            <pre id="line-template">${escapeHtml(lineTemplate)}</pre>
+          </section>
+
+          <section class="panel">
+            <div class="copy">
+              <h2>Admin Summary Template</h2>
+              <button type="button" data-copy="admin-template">Copy</button>
+            </div>
+            <p class="hint">Use this when the team already talked to the customer and only needs to summarize the brief before creating the job.</p>
+            <pre id="admin-template">${escapeHtml(adminTemplate)}</pre>
+          </section>
+
+          <section class="panel">
+            <h2>What Happens</h2>
+            <p>1. Upsert Airtable client and inbox record</p>
+            <p>2. Promote or create member</p>
+            <p>3. Generate customer and model links</p>
+            <p>4. Send Telegram notification</p>
+            <p>5. Return <code>create_job_v1</code> response for frontend or ops</p>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <script>
+      (() => {
+        const form = document.getElementById("create-job-form");
+        const submit = document.getElementById("submit");
+        const status = document.getElementById("status");
+        const result = document.getElementById("result");
+        const copyCustomerLink = document.getElementById("copy-customer-link");
+        const copyModelLink = document.getElementById("copy-model-link");
+        const logout = document.getElementById("logout");
+        let lastArtifacts = null;
+
+        function setStatus(message, kind) {
+          status.textContent = message || "";
+          status.className = "status" + (kind ? " " + kind : "");
+        }
+
+        function setResult(payload) {
+          const artifacts = payload && typeof payload === "object" ? payload.data?.artifacts || null : null;
+          lastArtifacts = artifacts;
+          copyCustomerLink.disabled = !(artifacts && artifacts.customer_url);
+          copyModelLink.disabled = !(artifacts && artifacts.model_url);
+          result.textContent = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+        }
+
+        async function copyFrom(id) {
+          const value = document.getElementById(id).textContent || "";
+          await navigator.clipboard.writeText(value);
+        }
+
+        async function copyLink(kind) {
+          const value = kind === "customer" ? lastArtifacts?.customer_url : lastArtifacts?.model_url;
+          if (!value) {
+            setStatus("No link is available to copy yet.", "error");
+            return;
+          }
+          await navigator.clipboard.writeText(value);
+          setStatus((kind === "customer" ? "Customer" : "Model") + " link copied.", "success");
+        }
+
+        document.querySelectorAll("[data-copy]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            try {
+              await copyFrom(button.getAttribute("data-copy"));
+              setStatus("Copied to clipboard.", "success");
+            } catch {
+              setStatus("Unable to copy right now.", "error");
+            }
+          });
+        });
+
+        copyCustomerLink.addEventListener("click", async () => {
+          try {
+            await copyLink("customer");
+          } catch {
+            setStatus("Unable to copy right now.", "error");
+          }
+        });
+
+        copyModelLink.addEventListener("click", async () => {
+          try {
+            await copyLink("model");
+          } catch {
+            setStatus("Unable to copy right now.", "error");
+          }
+        });
+
+        logout.addEventListener("click", () => {
+          if (window.__MMD_ADMIN_GATE__) {
+            window.__MMD_ADMIN_GATE__.logout();
+          }
+        });
+
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          setStatus("");
+
+          let payloadJson = {};
+          const payloadRaw = document.getElementById("payload_json").value.trim();
+          if (payloadRaw) {
+            try {
+              payloadJson = JSON.parse(payloadRaw);
+            } catch {
+              setStatus("Payload JSON is invalid.", "error");
+              return;
+            }
+          }
+
+          const hoursRaw = document.getElementById("expires_in_hours").value.trim();
+          const threadRaw = document.getElementById("telegram_message_thread_id").value.trim();
+
+          const payload = {
+            display_name: document.getElementById("display_name").value.trim(),
+            nickname: document.getElementById("nickname").value.trim(),
+            line_user_id: document.getElementById("line_user_id").value.trim(),
+            line_id: document.getElementById("line_id").value.trim(),
+            email: document.getElementById("email").value.trim(),
+            phone: document.getElementById("phone").value.trim(),
+            model_name: document.getElementById("model_name").value.trim(),
+            model_record_id: document.getElementById("model_record_id").value.trim(),
+            current_tier: document.getElementById("current_tier").value.trim(),
+            target_tier: document.getElementById("target_tier").value.trim(),
+            manual_note_raw: document.getElementById("manual_note_raw").value.trim(),
+            operator_summary: document.getElementById("operator_summary").value.trim(),
+            payload_json: payloadJson,
+            notify_telegram: document.getElementById("notify_telegram").checked,
+          };
+
+          if (hoursRaw) payload.expires_in_hours = Number(hoursRaw);
+          if (threadRaw) payload.telegram_message_thread_id = Number(threadRaw);
+
+          submit.disabled = true;
+          submit.textContent = "Creating...";
+          setStatus("Submitting create-job request…");
+          setResult("Working…");
+
+          try {
+            const headers = window.__MMD_ADMIN_GATE__
+              ? window.__MMD_ADMIN_GATE__.buildHeaders({ "Content-Type": "application/json" })
+              : new Headers({ "Content-Type": "application/json" });
+            const response = await fetch(${JSON.stringify(JOBS.createJob)}, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(payload),
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data) {
+              setStatus((data && (data.error?.message || data.error)) || "Create job failed.", "error");
+              setResult(data || { ok: false, status: response.status });
+              return;
+            }
+
+            setStatus("Job created successfully.", "success");
+            setResult(data);
+          } catch (error) {
+            setStatus("Unable to reach create-job right now.", "error");
+            setResult({ ok: false, error: String(error && error.message ? error.message : error) });
+          } finally {
+            submit.disabled = false;
+            submit.textContent = "Create Job";
           }
         });
       })();
@@ -2549,7 +3796,11 @@ export default {
 
       if (
         request.method === "OPTIONS" &&
-        (isPublicRenewalIntakeRoute(url.pathname) || isPublicCustomerConfirmRoute(url.pathname))
+        (
+          isPublicRenewalStatusRoute(url.pathname)
+          || isPublicRenewalIntakeRoute(url.pathname)
+          || isPublicCustomerConfirmRoute(url.pathname)
+        )
       ) {
         return withCors(request, env, new Response(null, { status: 204 }));
       }
@@ -2567,6 +3818,10 @@ export default {
 
       if (request.method === "GET" && url.pathname === PUBLIC.onboardingResolve) {
         return await handleResolveInvite(request, env);
+      }
+
+      if (request.method === "POST" && isPublicRenewalStatusRoute(url.pathname)) {
+        return await handlePublicRenewalStatus(request, env);
       }
 
       if (request.method === "POST" && isPublicRenewalIntakeRoute(url.pathname)) {
@@ -2589,7 +3844,11 @@ export default {
         return await handleVerifyAccessCode(request, env);
       }
 
-      if ((request.method === "GET" || request.method === "HEAD") && url.pathname === ADMIN_JOBS.createSession) {
+      if (
+        (request.method === "GET" || request.method === "HEAD") &&
+        (url.pathname === ADMIN_JOBS.createSession ||
+          url.pathname === ADMIN_JOBS.createSessionLegacy)
+      ) {
         if (request.method === "HEAD") {
           return new Response(null, {
             status: 200,
@@ -2617,6 +3876,34 @@ export default {
         return renderCreateSessionPage(request, session);
       }
 
+      if ((request.method === "GET" || request.method === "HEAD") && url.pathname === JOBS.createJob) {
+        if (request.method === "HEAD") {
+          return new Response(null, {
+            status: 200,
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": "no-store",
+            },
+          });
+        }
+
+        const gateSession = getValidatedGateSession(request);
+        if (!gateSession && !isAuthorized(request, env)) {
+          return makeLoginRedirect(request, url.pathname);
+        }
+
+        const session =
+          gateSession ||
+          ({
+            ok: true,
+            at: Date.now(),
+            baseUrl: new URL(request.url).origin,
+            bearer: readInternalToken(request) || env.INTERNAL_TOKEN,
+          } satisfies AdminGateSession);
+
+        return renderCreateJobPage(request, session);
+      }
+
       if ((request.method === "GET" || request.method === "HEAD") && isProtectedBrowserRoute(url.pathname)) {
         if (isAuthorized(request, env)) {
           return fetch(request);
@@ -2637,6 +3924,22 @@ export default {
 
       if (!isAuthorized(request, env)) {
         return unauthorized(meta);
+      }
+
+      if (request.method === "POST" && isLinePreviewRoute(url.pathname)) {
+        return await handleLinePreview(request, env);
+      }
+
+      if (request.method === "POST" && isLineIntakeRoute(url.pathname)) {
+        return await handleLineIntake(request, env);
+      }
+
+      if (request.method === "POST" && isCreateJobRoute(url.pathname)) {
+        return await handleCreateJob(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === JOBS.createJob) {
+        return await handleCreateJob(request, env);
       }
 
       if (request.method === "POST" && isIntakeRoute(url.pathname)) {

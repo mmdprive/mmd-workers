@@ -2,8 +2,11 @@ import type {
   CustomerBookingConfirmRequest,
   Env,
   ImmigrationLinkContext,
+  LineClientIntakeRequest,
+  LineClientLookupStep,
   LiveSession,
   MigrationRecord,
+  MigrationTraceSummary,
 } from "../types";
 
 type AirtableValue =
@@ -66,6 +69,11 @@ function syncTargetUrl(env: Env): string {
   return `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${table}`;
 }
 
+function clientsUrl(env: Env): string {
+  const table = encodeURIComponent(env.AIRTABLE_TABLE_CLIENTS || "Clients");
+  return `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${table}`;
+}
+
 function headers(env: Env): HeadersInit {
   return {
     Authorization: `Bearer ${env.AIRTABLE_API_KEY}`,
@@ -90,6 +98,10 @@ function sessionField(
 
 function canWriteSessions(env: Env): boolean {
   return Boolean(env.AIRTABLE_API_KEY && env.AIRTABLE_BASE_ID && env.AIRTABLE_TABLE_SESSIONS);
+}
+
+function canWriteClients(env: Env): boolean {
+  return Boolean(env.AIRTABLE_API_KEY && env.AIRTABLE_BASE_ID && (env.AIRTABLE_TABLE_CLIENTS || "Clients"));
 }
 
 function getString(fields: Record<string, AirtableValue> | undefined, key: string): string | undefined {
@@ -294,6 +306,7 @@ async function listGenericRecords(
 type ContextSession = {
   session_id: string;
   service_date: string;
+  expire_at: string;
   model_name: string;
   work_type: string;
   amount_total_thb: number;
@@ -308,7 +321,27 @@ type ContextSession = {
   client_name: string;
 };
 
-function mapContextSession(fields: AirtableFields | undefined): ContextSession | null {
+function sessionExpireField(env: Env): string {
+  return String(env.AIRTABLE_SESSION_FIELD_EXPIRE_AT || "").trim();
+}
+
+function pickSessionExpireAt(fields: AirtableFields | undefined, env: Env): string {
+  const configured = sessionExpireField(env);
+  const keys = [
+    configured,
+    "mmd_expire_at",
+    "expire_at",
+    "membership_expire_at",
+    "Expire At",
+    "Expiration Date",
+    "end_date",
+    "End Date",
+    "Membership Expire At",
+  ].filter(Boolean);
+  return pickString(fields, keys);
+}
+
+function mapContextSession(fields: AirtableFields | undefined, env: Env): ContextSession | null {
   const sessionId = pickString(fields, ["session_id", "Session ID", "fldLTq2kZbyRv22IA"]);
   if (!sessionId) return null;
 
@@ -320,6 +353,7 @@ function mapContextSession(fields: AirtableFields | undefined): ContextSession |
   return {
     session_id: sessionId,
     service_date: pickString(fields, ["service_date", "job_date", "Date", "Service Date"]),
+    expire_at: pickSessionExpireAt(fields, env),
     model_name: pickString(fields, ["model_name", "Model Name"]),
     work_type: pickString(fields, ["work_type", "job_type", "Work Type", "Job Type", "package_code", "Package Code"]),
     amount_total_thb: amountTotal,
@@ -370,6 +404,472 @@ function buildServiceHistorySummaryFromSessions(sessions: ContextSession[]): str
     .join(" | ");
 }
 
+type NormalizedLineClientInput = {
+  immigration_id: string;
+  display_name: string;
+  nickname: string;
+  line_user_id: string;
+  line_id: string;
+  email: string;
+  phone: string;
+  source_channel: string;
+  primary_channel: string;
+  legacy_tags: string[];
+  manual_note: string;
+  operator_summary: string;
+  payload_json: Record<string, unknown>;
+  original_payload: Record<string, unknown>;
+};
+
+type ExistingClientMatch = {
+  record: AirtableRecord;
+  matched_field: string;
+  matched_value: string;
+};
+
+function readObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function parseLegacyTags(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((item) => toStr(item))
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  const raw = toStr(value);
+  if (!raw) return [];
+  return Array.from(
+    new Set(
+      raw
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function inferBaseMembership(input: { nickname: string; legacy_tags: string[]; operator_summary: string; manual_note: string }): string {
+  const nickname = input.nickname.toLowerCase();
+  if (nickname.includes("lite")) return "standard";
+
+  const combined = [input.nickname, ...input.legacy_tags, input.operator_summary, input.manual_note].join(" ").toLowerCase();
+  if (/(^|\s)#client(\s|$)|(^|\s)#purchased(\s|$)|#mem[a-z0-9]*/i.test(combined)) {
+    return "premium";
+  }
+
+  return "";
+}
+
+function inferBadgeTier(input: { nickname: string; legacy_tags: string[]; operator_summary: string; manual_note: string }): string {
+  const combined = [input.nickname, ...input.legacy_tags, input.operator_summary, input.manual_note].join(" ").toLowerCase();
+  if (combined.includes("-svip-")) return "svip";
+  if (combined.includes("-vip-")) return "vip";
+  return "";
+}
+
+function inferMemberSince(legacyTags: string[]): string {
+  for (const tag of legacyTags) {
+    const raw = tag.trim();
+    if (!raw) continue;
+    if (/^#mem2025$/i.test(raw) || /^#mem25$/i.test(raw)) return "2025";
+    const monthMatch = raw.match(/^#mem([a-z]{3})(\d{2})$/i);
+    if (monthMatch) {
+      const [, mon, yy] = monthMatch;
+      const months: Record<string, string> = {
+        jan: "01",
+        feb: "02",
+        mar: "03",
+        apr: "04",
+        may: "05",
+        jun: "06",
+        jul: "07",
+        aug: "08",
+        sep: "09",
+        oct: "10",
+        nov: "11",
+        dec: "12",
+      };
+      const month = months[mon.toLowerCase()];
+      if (month) return `20${yy}-${month}`;
+    }
+  }
+
+  return "";
+}
+
+function normalizeLineClientInput(input: LineClientIntakeRequest): NormalizedLineClientInput {
+  const identity = readObject(input.identity);
+  const notes = readObject(input.notes);
+  const payloadJson = readObject(input.payload_json);
+  const originalPayload = readObject(input.original_payload);
+  const legacyTags = parseLegacyTags(input.legacy_tags ?? payloadJson.legacy_tags ?? payloadJson.tags);
+  const nowId = `img_${crypto.randomUUID().slice(0, 8)}_${Date.now().toString(36)}`;
+  const sourceChannel = toStr(input.source_channel ?? payloadJson.source_channel ?? originalPayload.source_channel).toLowerCase();
+  const intakeSource = toStr(input.intake_source ?? payloadJson.intake_source ?? originalPayload.intake_source).toLowerCase();
+  const normalizedSourceChannel = sourceChannel || "line";
+  const normalizedPrimaryChannel = intakeSource
+    || (normalizedSourceChannel === "renewal" ? "renewal_web" : normalizedSourceChannel);
+
+  return {
+    immigration_id: toStr(input.immigration_id) || nowId,
+    display_name: toStr(input.display_name ?? identity.display_name ?? payloadJson.display_name ?? payloadJson.line_display_name),
+    nickname: toStr(input.nickname ?? identity.nickname ?? payloadJson.nickname),
+    line_user_id: toStr(input.line_user_id ?? identity.line_user_id ?? payloadJson.line_user_id),
+    line_id: toStr(input.line_id ?? identity.line_id ?? payloadJson.line_id ?? payloadJson.source_message_id),
+    email: toStr(input.member_email ?? input.email ?? identity.member_email ?? identity.email ?? payloadJson.member_email ?? payloadJson.email).toLowerCase(),
+    phone: toStr(input.member_phone ?? input.phone ?? identity.member_phone ?? identity.phone ?? payloadJson.member_phone ?? payloadJson.phone),
+    source_channel: normalizedSourceChannel,
+    primary_channel: normalizedPrimaryChannel,
+    legacy_tags: legacyTags,
+    manual_note: toStr(input.manual_note ?? notes.manual_note ?? payloadJson.manual_note),
+    operator_summary: toStr(input.operator_summary ?? notes.operator_summary ?? payloadJson.operator_summary),
+    payload_json: payloadJson,
+    original_payload: Object.keys(originalPayload).length ? originalPayload : payloadJson,
+  };
+}
+
+function clientField(
+  env: Env,
+  key:
+    | "AIRTABLE_CLIENT_FIELD_CLIENT_NAME"
+    | "AIRTABLE_CLIENT_FIELD_NICKNAME"
+    | "AIRTABLE_CLIENT_FIELD_MMD_CLIENT_NAME"
+    | "AIRTABLE_CLIENT_FIELD_LINE_USER_ID"
+    | "AIRTABLE_CLIENT_FIELD_LINE_DISPLAY_NAME"
+    | "AIRTABLE_CLIENT_FIELD_EMAIL"
+    | "AIRTABLE_CLIENT_FIELD_PHONE_NUMBER"
+    | "AIRTABLE_CLIENT_FIELD_SOURCE"
+    | "AIRTABLE_CLIENT_FIELD_PRIMARY_CHANNEL"
+    | "AIRTABLE_CLIENT_FIELD_NOTES_RAW"
+    | "AIRTABLE_CLIENT_FIELD_STATUS"
+    | "AIRTABLE_CLIENT_FIELD_LINE_ID",
+  fallback: string,
+): string {
+  return String(env[key] || "").trim() || fallback;
+}
+
+function clientLookupField(
+  env: Env,
+  key:
+    | "AIRTABLE_CLIENT_LOOKUP_FIELD_LINE_USER_ID"
+    | "AIRTABLE_CLIENT_LOOKUP_FIELD_EMAIL"
+    | "AIRTABLE_CLIENT_LOOKUP_FIELD_PHONE_NUMBER"
+    | "AIRTABLE_CLIENT_LOOKUP_FIELD_LINE_ID",
+  fallback: string,
+): string {
+  return String(env[key] || "").trim() || fallback;
+}
+
+function buildMigrationTrace(input: NormalizedLineClientInput): MigrationTraceSummary {
+  return {
+    raw_legacy_tags: input.legacy_tags,
+    inferred_base_membership: inferBaseMembership(input),
+    inferred_badge_tier: inferBadgeTier(input),
+    inferred_member_since: inferMemberSince(input.legacy_tags),
+    raw_line_id: input.line_id,
+    operator_summary: input.operator_summary,
+    manual_note: input.manual_note,
+  };
+}
+
+function toAirtableSourceValue(input: NormalizedLineClientInput): string {
+  void input;
+  return "line";
+}
+
+function buildNotesRaw(input: NormalizedLineClientInput, trace: MigrationTraceSummary): string {
+  return JSON.stringify(
+    {
+      migration_layer: "immigrate-worker",
+      boundary: "Migration trace only. This data does not redefine canonical production truth.",
+      canonical_target: "Clients",
+      immigration_id: input.immigration_id,
+      line_identity: {
+        line_user_id: input.line_user_id,
+        line_display_name: input.display_name,
+        legacy_line_id: input.line_id,
+      },
+      raw_legacy_values: {
+        nickname: input.nickname,
+        email: input.email,
+        phone: input.phone,
+        legacy_tags: input.legacy_tags,
+      },
+      inferred_legacy_mapping: {
+        base_membership: trace.inferred_base_membership,
+        badge_tier: trace.inferred_badge_tier,
+        member_since: trace.inferred_member_since,
+      },
+      operator_summary: input.operator_summary,
+      manual_note: input.manual_note,
+      original_payload_snapshot: input.original_payload,
+    },
+    null,
+    2,
+  );
+}
+
+function buildLookupStrategy(env: Env, input: NormalizedLineClientInput): LineClientLookupStep[] {
+  const steps: LineClientLookupStep[] = [];
+
+  const lineUserIdField = clientLookupField(env, "AIRTABLE_CLIENT_LOOKUP_FIELD_LINE_USER_ID", clientField(env, "AIRTABLE_CLIENT_FIELD_LINE_USER_ID", "line_user_id"));
+  const emailField = clientLookupField(env, "AIRTABLE_CLIENT_LOOKUP_FIELD_EMAIL", clientField(env, "AIRTABLE_CLIENT_FIELD_EMAIL", "email"));
+  const phoneField = clientLookupField(env, "AIRTABLE_CLIENT_LOOKUP_FIELD_PHONE_NUMBER", clientField(env, "AIRTABLE_CLIENT_FIELD_PHONE_NUMBER", "Phone Number"));
+  const lineIdField = clientLookupField(env, "AIRTABLE_CLIENT_LOOKUP_FIELD_LINE_ID", clientField(env, "AIRTABLE_CLIENT_FIELD_LINE_ID", ""));
+
+  if (input.line_user_id) steps.push({ field: lineUserIdField, value: input.line_user_id });
+  if (input.email) steps.push({ field: emailField, value: input.email });
+  if (input.phone) steps.push({ field: phoneField, value: input.phone });
+  if (lineIdField && input.line_id) steps.push({ field: lineIdField, value: input.line_id });
+
+  return steps;
+}
+
+function buildClientFields(env: Env, input: NormalizedLineClientInput, trace: MigrationTraceSummary): Record<string, unknown> {
+  const fallbackClientName = input.source_channel === "renewal" ? "Renewal Client" : "LINE Client";
+  const clientName = input.display_name || input.nickname || input.line_user_id || fallbackClientName;
+  const nickname = input.nickname || input.display_name;
+  const mmdClientName = input.nickname || input.display_name || clientName;
+  const fields: Record<string, unknown> = {
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_CLIENT_NAME", "Client Name")]: clientName,
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_NICKNAME", "nickname")]: nickname,
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_MMD_CLIENT_NAME", "mmd_client_name")]: mmdClientName,
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_LINE_USER_ID", "line_user_id")]: input.line_user_id,
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_LINE_DISPLAY_NAME", "line_display_name")]: input.display_name || nickname,
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_EMAIL", "email")]: input.email,
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_PHONE_NUMBER", "Phone Number")]: input.phone,
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_SOURCE", "source")]: toAirtableSourceValue(input),
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_PRIMARY_CHANNEL", "primary_channel")]: input.primary_channel,
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_NOTES_RAW", "notes_raw")]: buildNotesRaw(input, trace),
+    [clientField(env, "AIRTABLE_CLIENT_FIELD_STATUS", "Status")]: "Active",
+  };
+
+  const configuredLineIdField = clientField(env, "AIRTABLE_CLIENT_FIELD_LINE_ID", "");
+  if (configuredLineIdField && input.line_id) {
+    fields[configuredLineIdField] = input.line_id;
+  }
+
+  return Object.fromEntries(Object.entries(fields).filter(([, value]) => {
+    if (value == null) return false;
+    if (typeof value === "string") return value.trim().length > 0;
+    return true;
+  }));
+}
+
+async function findExistingClient(env: Env, steps: LineClientLookupStep[]): Promise<ExistingClientMatch | null> {
+  if (!canReadAirtable(env)) return null;
+
+  for (const step of steps) {
+    const formula = `{${step.field}}="${encodeFormulaValue(step.value)}"`;
+    const records = await listGenericRecords(env, clientsUrl(env), { formula, maxRecords: 1 });
+    const record = records[0];
+    if (record?.id) {
+      return {
+        record,
+        matched_field: step.field,
+        matched_value: step.value,
+      };
+    }
+  }
+
+  return null;
+}
+
+async function writeClientRecord(
+  env: Env,
+  fields: Record<string, unknown>,
+  existingMatch: ExistingClientMatch | null,
+): Promise<{ id?: string; fields?: Record<string, unknown>; action: "created" | "updated" }> {
+  const targetUrl = existingMatch?.record.id
+    ? `${clientsUrl(env)}/${encodeURIComponent(existingMatch.record.id)}`
+    : clientsUrl(env);
+  const response = await fetch(targetUrl, {
+    method: existingMatch?.record.id ? "PATCH" : "POST",
+    headers: headers(env),
+    body: JSON.stringify({ fields }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Airtable client upsert failed: ${response.status} ${text}`);
+  }
+
+  return {
+    ...((await response.json()) as AirtableSingleResponse),
+    action: existingMatch?.record.id ? "updated" : "created",
+  };
+}
+
+export async function patchClientMemberstackId(
+  env: Env,
+  recordId: string,
+  memberstackId: string,
+): Promise<{ id?: string; fields?: Record<string, unknown> }> {
+  if (!canWriteClients(env)) {
+    return {
+      id: recordId,
+      fields: {
+        memberstack_id: memberstackId,
+      },
+    };
+  }
+
+  const candidateFields = ["memberstack_id", "Memberstack ID"];
+  let lastError: Error | null = null;
+
+  for (const fieldName of candidateFields) {
+    const response = await fetch(`${clientsUrl(env)}/${encodeURIComponent(recordId)}`, {
+      method: "PATCH",
+      headers: headers(env),
+      body: JSON.stringify({
+        fields: {
+          [fieldName]: memberstackId,
+        },
+      }),
+    });
+
+    if (response.ok) {
+      return (await response.json()) as AirtableSingleResponse;
+    }
+
+    const text = await response.text();
+    lastError = new Error(`Airtable client memberstack patch failed: ${response.status} ${text}`);
+  }
+
+  throw lastError || new Error("Airtable client memberstack patch failed");
+}
+
+async function writeConsoleInboxRecord(
+  env: Env,
+  input: NormalizedLineClientInput,
+  trace: MigrationTraceSummary,
+): Promise<{ id?: string } | null> {
+  if (!enabled(env)) return null;
+
+  const response = await fetch(syncTargetUrl(env), {
+    method: "POST",
+    headers: headers(env),
+    body: JSON.stringify({
+      fields: {
+        inbox_id: input.immigration_id,
+        created_by: "immigrate-worker",
+        source: toAirtableSourceValue(input),
+        intent: "upsert_member",
+        member_name: input.display_name || input.nickname || "",
+        member_phone: input.phone,
+        line_user_id: input.line_user_id,
+        line_id: input.line_id,
+        legacy_tags: input.legacy_tags.join(", "),
+        admin_note: input.manual_note
+          || input.operator_summary
+          || (input.source_channel === "renewal" ? "Renewal web intake" : "LINE legacy identity intake"),
+        payload_json: JSON.stringify({
+          immigration_id: input.immigration_id,
+          target_table: "Clients",
+          trace,
+          payload_json: input.payload_json,
+          original_payload: input.original_payload,
+        }),
+        status: "new",
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Airtable inbox write failed: ${response.status} ${text}`);
+  }
+
+  return (await response.json()) as { id?: string };
+}
+
+async function buildLineClientPreviewData(env: Env, input: NormalizedLineClientInput) {
+  const migrationTrace = buildMigrationTrace(input);
+  const lookupStrategy = buildLookupStrategy(env, input);
+  const clientFields = buildClientFields(env, input, migrationTrace);
+  const existingMatch = await findExistingClient(env, lookupStrategy);
+
+  return {
+    target_table: env.AIRTABLE_TABLE_CLIENTS || "Clients",
+    lookup_strategy: {
+      table: env.AIRTABLE_TABLE_CLIENTS || "Clients",
+      steps: lookupStrategy,
+    },
+    client_record_preview: {
+      fields: clientFields,
+    },
+    migration_trace: migrationTrace,
+    existing_match: existingMatch
+      ? {
+          airtable_record_id: existingMatch.record.id,
+          matched_field: existingMatch.matched_field,
+          matched_value: existingMatch.matched_value,
+        }
+      : null,
+    mode: canReadAirtable(env) ? "airtable" as const : "mock" as const,
+  };
+}
+
+export async function previewLineClientUpsert(env: Env, request: LineClientIntakeRequest) {
+  const input = normalizeLineClientInput(request);
+  return buildLineClientPreviewData(env, input);
+}
+
+export async function intakeLineClientUpsert(env: Env, request: LineClientIntakeRequest) {
+  const input = normalizeLineClientInput(request);
+  const preview = await buildLineClientPreviewData(env, input);
+
+  if (!enabled(env) || !canWriteClients(env)) {
+    return {
+      ...preview,
+      immigration_id: input.immigration_id,
+      mode: "mock" as const,
+      action: preview.existing_match ? "updated" as const : "created" as const,
+      client: {
+        airtable_record_id: `mock_${input.immigration_id}`,
+        fields: preview.client_record_preview.fields,
+      },
+      inbox_record: {
+        airtable_record_id: `mock_inbox_${input.immigration_id}`,
+        source: toAirtableSourceValue(input),
+        intent: "upsert_member",
+        status: "new",
+      },
+    };
+  }
+
+  const existingMatch = preview.existing_match
+    ? await findExistingClient(env, preview.lookup_strategy.steps)
+    : null;
+  const clientResult = await writeClientRecord(env, preview.client_record_preview.fields, existingMatch);
+  const inboxRecord = await writeConsoleInboxRecord(env, input, preview.migration_trace);
+
+  return {
+    ...preview,
+    immigration_id: input.immigration_id,
+    mode: "airtable" as const,
+    action: clientResult.action,
+    client: {
+      airtable_record_id: clientResult.id || "",
+      fields: clientResult.fields || preview.client_record_preview.fields,
+    },
+    inbox_record: inboxRecord
+      ? {
+          airtable_record_id: inboxRecord.id || "",
+          source: toAirtableSourceValue(input),
+          intent: "upsert_member",
+          status: "new",
+        }
+      : null,
+  };
+}
+
 export async function buildImmigrationLinkContext(
   env: Env,
   input: {
@@ -415,6 +915,7 @@ export async function buildImmigrationLinkContext(
         status: toStr(input.membership_status) || "pending",
         current_tier: toStr(input.current_tier),
         target_tier: toStr(input.target_tier),
+        expire_at: "",
         auto_signup_ready: !memberstackId,
       },
     };
@@ -435,7 +936,7 @@ export async function buildImmigrationLinkContext(
   try {
     const sessionRows = await listGenericRecords(env, sessionsUrl(env), { maxRecords: 100 });
     serviceHistory = sessionRows
-      .map((record) => mapContextSession(record.fields))
+      .map((record) => mapContextSession(record.fields, env))
       .filter((record): record is ContextSession => Boolean(record))
       .filter((record) => {
         const matchesMemberstack = memberstackId && record.memberstack_id === memberstackId;
@@ -484,6 +985,7 @@ export async function buildImmigrationLinkContext(
     service_history: serviceHistory.map((record) => ({
       session_id: record.session_id,
       service_date: record.service_date,
+      expire_at: record.expire_at,
       model_name: record.model_name,
       work_type: record.work_type,
       amount_total_thb: record.amount_total_thb,
@@ -509,6 +1011,7 @@ export async function buildImmigrationLinkContext(
       status: toStr(input.membership_status) || (memberstackId ? "active" : "pending_signup"),
       current_tier: toStr(input.current_tier),
       target_tier: toStr(input.target_tier),
+      expire_at: latestSession?.expire_at || "",
       auto_signup_ready: !memberstackId,
     },
   };
@@ -653,7 +1156,7 @@ export async function syncRecordsToAirtable(env: Env, records: MigrationRecord[]
         inbox_id: record.migration_id,
         created_by: "immigrate-worker",
         source: "line",
-        intent: record.parsed_intent === "booking" ? "create_session" : "note_only",
+        intent: "upsert_member",
         member_name: record.parsed_name || "",
         member_phone: record.parsed_phone || "",
         line_user_id: record.source_user_id,

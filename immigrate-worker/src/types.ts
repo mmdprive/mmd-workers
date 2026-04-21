@@ -1,5 +1,6 @@
 export interface Env {
   INTERNAL_TOKEN: string;
+  ADMIN_WORKER?: Fetcher;
   BROWSER_GATE_PASSWORD?: string;
   BROWSER_GATE_USERNAME?: string;
   CONFIRM_KEY?: string;
@@ -18,6 +19,22 @@ export interface Env {
   PUBLIC_ALLOWED_ORIGINS?: string;
   AI_WORKER_BASE_URL?: string;
   ADMIN_WORKER_BASE_URL?: string;
+  AIRTABLE_CLIENT_FIELD_CLIENT_NAME?: string;
+  AIRTABLE_CLIENT_FIELD_NICKNAME?: string;
+  AIRTABLE_CLIENT_FIELD_MMD_CLIENT_NAME?: string;
+  AIRTABLE_CLIENT_FIELD_LINE_USER_ID?: string;
+  AIRTABLE_CLIENT_FIELD_LINE_DISPLAY_NAME?: string;
+  AIRTABLE_CLIENT_FIELD_EMAIL?: string;
+  AIRTABLE_CLIENT_FIELD_PHONE_NUMBER?: string;
+  AIRTABLE_CLIENT_FIELD_SOURCE?: string;
+  AIRTABLE_CLIENT_FIELD_PRIMARY_CHANNEL?: string;
+  AIRTABLE_CLIENT_FIELD_NOTES_RAW?: string;
+  AIRTABLE_CLIENT_FIELD_STATUS?: string;
+  AIRTABLE_CLIENT_FIELD_LINE_ID?: string;
+  AIRTABLE_CLIENT_LOOKUP_FIELD_LINE_USER_ID?: string;
+  AIRTABLE_CLIENT_LOOKUP_FIELD_EMAIL?: string;
+  AIRTABLE_CLIENT_LOOKUP_FIELD_PHONE_NUMBER?: string;
+  AIRTABLE_CLIENT_LOOKUP_FIELD_LINE_ID?: string;
   AIRTABLE_SESSION_FIELD_STATUS?: string;
   AIRTABLE_SESSION_FIELD_PAYMENT_STATUS?: string;
   AIRTABLE_SESSION_FIELD_PAYMENT_STAGE?: string;
@@ -25,6 +42,7 @@ export interface Env {
   AIRTABLE_SESSION_FIELD_FINAL_PRICE_THB?: string;
   AIRTABLE_SESSION_FIELD_CONFIRMATION_NOTES?: string;
   AIRTABLE_SESSION_FIELD_CUSTOMER_CONFIRMED_AT?: string;
+  AIRTABLE_SESSION_FIELD_EXPIRE_AT?: string;
 }
 
 export type InviteRole = "customer" | "model";
@@ -164,6 +182,199 @@ export interface ImmigrationIntakeResponse {
   meta: Meta;
 }
 
+export interface LineClientIntakeRequest {
+  immigration_id?: string;
+  memberstack_id?: string;
+  source_channel?: string;
+  intake_source?: string;
+  display_name?: string;
+  nickname?: string;
+  line_user_id?: string;
+  line_id?: string;
+  email?: string;
+  phone?: string;
+  member_email?: string;
+  member_phone?: string;
+  model_name?: string;
+  model_record_id?: string;
+  expires_in_hours?: number;
+  telegram_chat_id?: string;
+  telegram_message_thread_id?: number | string;
+  notify_telegram?: boolean;
+  legacy_tags?: string[] | string;
+  manual_note?: string;
+  operator_summary?: string;
+  payload_json?: Record<string, unknown>;
+  original_payload?: Record<string, unknown>;
+  identity?: {
+    display_name?: string;
+    nickname?: string;
+    line_user_id?: string;
+    line_id?: string;
+    email?: string;
+    phone?: string;
+    member_email?: string;
+    member_phone?: string;
+  };
+  notes?: {
+    manual_note?: string;
+    operator_summary?: string;
+  };
+}
+
+export interface MigrationTraceSummary {
+  raw_legacy_tags: string[];
+  inferred_base_membership: string;
+  inferred_badge_tier: string;
+  inferred_member_since: string;
+  raw_line_id: string;
+  operator_summary: string;
+  manual_note: string;
+}
+
+export interface LineClientLookupStep {
+  field: string;
+  value: string;
+}
+
+export interface LineClientPreviewResponse {
+  ok: true;
+  data: {
+    target_table: string;
+    lookup_strategy: {
+      table: string;
+      steps: LineClientLookupStep[];
+    };
+    client_record_preview: {
+      fields: Record<string, unknown>;
+    };
+    migration_trace: MigrationTraceSummary;
+    existing_match: {
+      airtable_record_id: string;
+      matched_field: string;
+      matched_value: string;
+    } | null;
+    mode: "airtable" | "mock";
+  };
+  meta: Meta;
+}
+
+export interface LineClientIntakeResponse {
+  ok: true;
+  data: {
+    immigration_id: string;
+    target_table: string;
+    lookup_strategy: {
+      table: string;
+      steps: LineClientLookupStep[];
+    };
+    migration_trace: MigrationTraceSummary;
+    mode: "airtable" | "mock";
+    action: "created" | "updated";
+    client: {
+      airtable_record_id: string;
+      fields: Record<string, unknown>;
+    };
+    inbox_record: {
+      airtable_record_id: string;
+      source: string;
+      intent: string;
+      status: string;
+    } | null;
+    promotion: {
+      attempted: boolean;
+      ok: boolean;
+      member_id: string;
+      promotion_status: string;
+      created_new_member: boolean;
+      error?: string;
+    } | null;
+    links: {
+      immigration_id: string;
+      expires_at: string;
+      expires_in_hours: number;
+      customer_token: string;
+      model_token: string;
+      customer_url: string;
+      model_url: string;
+      customer_rules_url: string;
+      model_rules_url: string;
+      customer_dashboard_url: string;
+      model_dashboard_url: string;
+      context: ImmigrationLinkContext;
+    } | null;
+    telegram: {
+      attempted: boolean;
+      ok: boolean;
+      status?: number;
+      error?: string;
+    } | null;
+  };
+  meta: Meta;
+}
+
+export interface CreateJobRequest extends LineClientIntakeRequest {
+  manual_note_raw?: string;
+}
+
+export interface CreateJobResponse {
+  ok: true;
+  data: {
+    contract_version: "create_job_v1";
+    immigration_id: string;
+    promotion: {
+      attempted: boolean;
+      ok: boolean;
+      member_id: string;
+      promotion_status: string;
+      created_new_member: boolean;
+      error?: string;
+    } | null;
+    links: {
+      immigration_id: string;
+      expires_at: string;
+      expires_in_hours: number;
+      customer_token: string;
+      model_token: string;
+      customer_url: string;
+      model_url: string;
+      customer_rules_url: string;
+      model_rules_url: string;
+      customer_dashboard_url: string;
+      model_dashboard_url: string;
+      context: ImmigrationLinkContext;
+    } | null;
+    telegram: {
+      attempted: boolean;
+      ok: boolean;
+      status?: number;
+      error?: string;
+    } | null;
+    airtable: {
+      client_record_id: string | null;
+      inbox_record_id: string | null;
+    };
+    artifacts: {
+      member_id: string;
+      customer_url: string;
+      model_url: string;
+      customer_dashboard_url: string;
+      model_dashboard_url: string;
+      airtable: {
+        client_record_id: string | null;
+        inbox_record_id: string | null;
+      };
+      telegram: {
+        attempted: boolean;
+        ok: boolean;
+        status?: number;
+        error?: string;
+      } | null;
+    };
+  };
+  meta: Meta;
+}
+
 export interface ImmigrationPromoteRequest {
   immigration_id: string;
   source_channel: ImmigrationSourceChannel;
@@ -219,6 +430,7 @@ export interface ImmigrationLinksRequest {
 export interface ImmigrationContextSession {
   session_id: string;
   service_date: string;
+  expire_at: string;
   model_name: string;
   work_type: string;
   amount_total_thb: number;
@@ -256,6 +468,7 @@ export interface ImmigrationLinkContext {
     status: string;
     current_tier: string;
     target_tier: string;
+    expire_at: string;
     auto_signup_ready: boolean;
   };
 }
