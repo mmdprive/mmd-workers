@@ -2,7 +2,7 @@
 # LOCK v2026-LOCK-01
 
 name = "admin-worker"
-main = "src/index.js"
+main = "index.js"
 compatibility_date = "2026-01-01"
 workers_dev = true
 
