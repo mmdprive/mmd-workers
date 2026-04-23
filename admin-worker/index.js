@@ -135,6 +135,103 @@ export default {
         }
       }
 
+      if (method === "POST" && path === "/v1/admin/sigil/handoff") {
+        if (!isConfirmKeyAuthed(req, env)) {
+          return withCors(json({ ok: false, error: "unauthorized" }, 401), cors);
+        }
+
+        const body = await safeJson(req);
+
+        if (!env.AIRTABLE_API_KEY || !env.AIRTABLE_BASE_ID) {
+          return withCors(json({ ok: false, error: "missing_airtable_env" }, 500), cors);
+        }
+
+        const handoffId = str(body.handoff_id || body.inbox_id || crypto.randomUUID());
+        const memberName = str(body.member_name || body.name || body.display_name || "");
+        const telegramId = str(body.telegram_id || body.user_id || "");
+        const telegramUsername = str(body.telegram_username || body.username || "");
+        const intent = str(body.intent || "sigil_private_handoff");
+        const priority = str(body.priority || body.status || "new");
+        const journeyStage = str(body.journey_stage || "alignment");
+        const preferencesSummary = summarizeList(body.preferences || body.preferences_summary || body.selected_preferences);
+        const requestedService = str(body.requested_service || body.service || body.service_type || "");
+        const budgetText = str(body.budget || body.budget_text || "");
+        const scheduleText = str(body.schedule || body.when || body.requested_time || "");
+        const source = str(body.source || "sigil_chatbot");
+
+        const adminNote = buildSigilAdminNote({
+          memberName,
+          telegramUsername,
+          telegramId,
+          requestedService,
+          budgetText,
+          scheduleText,
+          preferencesSummary,
+          journeyStage,
+          note: str(body.admin_note || body.note || body.operator_note || ""),
+        });
+
+        const fields = {
+          inbox_id: handoffId,
+          source,
+          intent,
+          member_name: memberName,
+          member_email: str(body.member_email || body.email || ""),
+          member_phone: str(body.member_phone || body.phone || ""),
+          memberstack_id: str(body.memberstack_id || ""),
+          telegram_id: telegramId,
+          telegram_username: telegramUsername,
+          line_user_id: str(body.line_user_id || ""),
+          line_id: str(body.line_id || ""),
+          legacy_tags: str(body.legacy_tags || ""),
+          admin_note: adminNote,
+          payload_json: JSON.stringify(body.payload_json || body || {}),
+          status: priority,
+          error_message: "",
+        };
+
+        if (body.linked_member) fields.linked_member = [str(body.linked_member)];
+        if (body.linked_session) fields.linked_session = [str(body.linked_session)];
+        if (body.linked_payment) fields.linked_payment = [str(body.linked_payment)];
+
+        try {
+          const rec = await airtableCreate({
+            baseId: env.AIRTABLE_BASE_ID,
+            tableId: env.AIRTABLE_TABLE_CONSOLE_INBOX_ID || "tblFHmfpB2TTrzO2e",
+            apiKey: env.AIRTABLE_API_KEY,
+            fields,
+          });
+
+          const notify = await notifySigilHandoff(env, {
+            handoff_id: handoffId,
+            airtable_record_id: rec?.id || "",
+            member_name: memberName,
+            telegram_username: telegramUsername,
+            telegram_id: telegramId,
+            requested_service: requestedService,
+            budget_text: budgetText,
+            schedule_text: scheduleText,
+            preferences_summary: preferencesSummary,
+            journey_stage: journeyStage,
+            admin_note: adminNote,
+          });
+
+          return withCors(
+            json({
+              ok: true,
+              layer: "immigration",
+              handoff_id: handoffId,
+              record_id: rec?.id || null,
+              notified: Boolean(notify?.ok),
+              notify_error: notify?.ok ? null : notify?.error || null,
+            }),
+            cors
+          );
+        } catch (e) {
+          return withCors(json({ ok: false, error: String(e?.message || e) }, 500), cors);
+        }
+      }
+
       if (method === "POST" && path === "/v1/admin/payment/proof") {
         if (!isConfirmKeyAuthed(req, env)) {
           return withCors(json({ ok: false, error: "unauthorized" }, 401), cors);
@@ -590,6 +687,40 @@ function getAllowedModelFields(env) {
   );
 }
 
+function summarizeList(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => str(item)).filter(Boolean).join(", ");
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).map((item) => str(item)).filter(Boolean).join(", ");
+  }
+  return str(value);
+}
+
+function buildSigilAdminNote({
+  memberName,
+  telegramUsername,
+  telegramId,
+  requestedService,
+  budgetText,
+  scheduleText,
+  preferencesSummary,
+  journeyStage,
+  note,
+}) {
+  const lines = ["SIGIL private handoff"];
+  if (memberName) lines.push(`Name: ${memberName}`);
+  if (telegramUsername) lines.push(`Telegram: @${telegramUsername}`);
+  else if (telegramId) lines.push(`Telegram ID: ${telegramId}`);
+  if (requestedService) lines.push(`Service: ${requestedService}`);
+  if (budgetText) lines.push(`Budget: ${budgetText}`);
+  if (scheduleText) lines.push(`When: ${scheduleText}`);
+  if (preferencesSummary) lines.push(`Preferences: ${preferencesSummary}`);
+  if (journeyStage) lines.push(`Stage: ${journeyStage}`);
+  if (note) lines.push(`Note: ${note}`);
+  return lines.join(" | ");
+}
+
 /* =========================
    Airtable
 ========================= */
@@ -787,6 +918,40 @@ async function telegramInternalSend(env, payload) {
 
   if (!res.ok) return { ok: false, status: res.status, data };
   return { ok: true, data };
+}
+
+async function notifySigilHandoff(env, data) {
+  if (!env.TELEGRAM_INTERNAL_SEND_URL || !env.INTERNAL_TOKEN) {
+    return { ok: false, error: "missing_telegram_internal_env" };
+  }
+
+  const threadId = env.TG_THREAD_CONFIRM || 61;
+  const lines = [
+    "🖤 <b>SIGIL HANDOFF</b>",
+    `Handoff: <code>${escHtml(data.handoff_id || "-")}</code>`,
+    `Inbox Record: <code>${escHtml(data.airtable_record_id || "-")}</code>`,
+  ];
+
+  if (data.member_name) lines.push(`Name: <b>${escHtml(data.member_name)}</b>`);
+  if (data.telegram_username) lines.push(`Telegram: <b>@${escHtml(data.telegram_username)}</b>`);
+  else if (data.telegram_id) lines.push(`Telegram ID: <code>${escHtml(data.telegram_id)}</code>`);
+  if (data.requested_service) lines.push(`Service: <b>${escHtml(data.requested_service)}</b>`);
+  if (data.budget_text) lines.push(`Budget: <b>${escHtml(data.budget_text)}</b>`);
+  if (data.schedule_text) lines.push(`When: <b>${escHtml(data.schedule_text)}</b>`);
+  if (data.preferences_summary) lines.push(`Preferences: <b>${escHtml(data.preferences_summary)}</b>`);
+  if (data.journey_stage) lines.push(`Stage: <b>${escHtml(data.journey_stage)}</b>`);
+  if (data.admin_note) {
+    lines.push("");
+    lines.push(`<i>${escHtml(data.admin_note)}</i>`);
+  }
+
+  return await telegramInternalSend(env, {
+    chat_id: env.TELEGRAM_CHAT_ID || "-1003546439681",
+    message_thread_id: threadId,
+    text: lines.join("\n"),
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  });
 }
 
 /* =========================
