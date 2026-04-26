@@ -6,14 +6,11 @@ MMD does not present itself as a neutral interface.
 
 The platform uses a **character layer** as the surface of the system, turning interaction into guided experience instead of generic UI behavior.
 
-In practice, this means users do not only interact with a product.
-They interact through **TMIB characters**.
+This version aligns the character model with the current lane structure and corrected canon.
 
-## Role in the platform
+---
 
-Characters are part of the **Experience Layer**.
-They do not replace system logic.
-They express it.
+## Core principle
 
 ```txt
 System at the core
@@ -21,120 +18,224 @@ Character at the surface
 Experience as the output
 ```
 
-This is one of the most important distinctions in MMD:
-- business logic stays shared and controlled
-- personality changes the experience of the interface
-- the system remains consistent underneath
+Characters express the system. They do not replace the system.
 
-## Current character set
+Rule:
 
-The current TMIB character interface includes:
+**Character shapes perception. System determines truth.**
+
+---
+
+## Character groups
+
+### 1. Core selectable route guides
+These characters shape the feel of the guided experience after entry:
 - Hito
 - Hiro
 - Hima
 - Hiei
+
+They are best understood as:
+- route mood
+- experience flavor
+- selectable interface expression
+
+They are not the main continuity owner of the client lane.
+
+### 2. Client continuity and front-facing guidance
 - Kenji
-- Tart
 
-These are not decorative mascots.
-They are experience modes expressed through identity, tone, and interaction style.
+Kenji should be treated as:
+- the central assistant of the client lane
+- continuity guide
+- polished reassurance layer
+- premium care and handling surface
 
-## Architectural relationship
+### 3. Recruitment and model-side intelligence
+- TarT
 
-```txt
-User
-  ↓
-TMIB Character Interface
-  ↓
-chat-worker
-  ↓
-Core Production Workers
-  - payments-worker
-  - admin-worker
-  - events-worker
-  - telegram-worker
-  ↓
-MMD Operating System
-```
+TarT should be treated as:
+- scout energy
+- recruitment face
+- model/apply guide
+- model-side intelligence layer
+- client context interpreter for models
 
-The character layer is primarily surfaced through `chat-worker`.
+TarT is **not** the primary face of the standard client purchase flow.
 
-## Core rules
+### 4. Authority, gatekeeping, and protected access roles
+- Boss Per
+- Yuki
+- Ewvon
 
-### 1. Character is interface, not authority
-Characters shape the way the system is felt.
-They do not change the underlying production truth.
+These roles should not be flattened into the same function.
+They represent different kinds of authority.
 
-### 2. Shared system, multiple personalities
-All characters sit on top of the same operating system.
-This preserves control and consistency.
+---
 
-### 3. No logic leakage
-Character expression must not break worker boundaries or canonical business contracts.
+## Character-by-character role map
 
-### 4. Personality must remain intentional
-A character should not feel random or generic.
-Each one should deliver a distinct experience.
+## Boss Per
+Core role:
+- authority
+- gate
+- system owner
+- premium standards
+- selective approval energy
 
-## Why the character layer matters
+Best use:
+- trust framing
+- authority statements
+- controlled access moments
+- approval energy
+- high-level invitation tone
 
-MMD is building an operating system with personality.
-That means the interface must feel human without letting the system become chaotic.
+---
 
-The character layer helps MMD do three things at once:
+## Kenji
+Core role:
+- client continuity
+- care
+- warmth
+- polished support
+- relationship-preserving guidance
 
-### Trust
-Users feel guided by someone, not abandoned inside a tool.
+Best use:
+- first visible contact in the client lane
+- concierge gateway
+- route explanation
+- dashboard continuity
+- booking flow guidance
+- payment follow-up
+- pre-service and aftercare continuity
 
-### Differentiation
-MMD does not feel like a standard SaaS product, concierge bot, or booking flow.
+Important:
 
-### Emotional control
-The system can shape tone, pace, and atmosphere while keeping the underlying mechanics stable.
+**Kenji is the strongest fit for client-facing continuity.**
 
-## Character principles
+---
 
-### Character-first experience
-Users should feel that they are entering through a person, not through a machine.
+## Hito / Hiro / Hima / Hiei
+These characters are part of the selectable guide layer.
 
-### System-first control
-Even when the user experiences a character, the system underneath remains deterministic.
+They are best used for:
+- choose-guide moments
+- route mood
+- dashboard skin and tone
+- experience flavor after selection
 
-### Consistent canon
-Characters should remain aligned with the TMIB universe and the approved MMD character canon.
+They shape experience tone, not system truth.
+
+---
+
+## TarT
+Core role:
+- scout
+- selection
+- recruitment
+- model-side intelligence
+- pre-reading potential
+
+Best use:
+- apply lane
+- recruitment flow
+- fit/readiness surfaces
+- model dashboard tone
+- model console
+- client brief for model
+- expectation and caution interpretation
+
+Important:
+
+**TarT should not be treated as the front-facing guide of the standard client purchase flow.**
+
+TarT belongs more strongly to the **Model / Apply Lane**.
+
+---
+
+## Yuki
+Core role:
+- partner-facing gatekeeping
+- screening
+- controlled introductions
+- quiet oversight
+- business-side boundary keeper
+
+Best use:
+- partner inquiry flow
+- partner review moments
+- controlled access boundaries
+- business-side trust filtering
+
+Important:
+
+**Yuki is not the owner of Black Card authority.**
+
+Yuki belongs to the **Partner Lane gatekeeping layer**.
+
+---
+
+## Ewvon
+Core role:
+- Black Card authority
+- elite access privilege
+- elevated access class
+- authority tied to Black Card-level right
+
+Best use:
+- Black Card authority framing
+- elite access moments
+- high-level privilege logic
+- rarefied approval or access surfaces where that authority matters
+
+Important:
+
+**Ewvon, not Yuki, should be treated as the stronger holder of Black Card-linked authority.**
+
+This distinction is important:
+- Yuki = partner-facing gatekeeping and controlled relationship boundary
+- Ewvon = Black Card-linked authority
+
+---
+
+## Lane alignment
+
+### Client Lane
+Best aligned:
+- Boss Per = authority / trust / gate
+- Kenji = continuity / care / client-facing handling
+- Hito / Hiro / Hima / Hiei = selectable route guides / mood layer
+
+### Model / Apply Lane
+Best aligned:
+- TarT = recruitment / scout / model-side intelligence
+- Boss Per = approval / standards / authority
+
+### Partner Lane
+Best aligned:
+- Yuki = partner gatekeeping / screening / controlled introductions
+- Boss Per = overarching authority above the lane
+
+### Black Card / elite authority moments
+Best aligned:
+- Ewvon
+- Boss Per at the system-owner level
+
+---
 
 ## Relationship to `chat-worker`
 
-`chat-worker` is the public-facing AI concierge layer.
-It is the main place where the character system becomes visible to users.
+`chat-worker` is the public-facing AI concierge layer and the main place where the character system becomes visible to users.
 
 This means:
-- `chat-worker` delivers character expression
-- core workers deliver system truth
-- the platform stays unified under one architecture
+- `chat-worker` can express character
+- route surfaces can reinforce lane-specific character fit
+- core workers still deliver system truth
 
-## Product implication
+Not every character should be surfaced in the same way.
 
-MMD website and chat surfaces should be designed with the understanding that:
-- users may choose who guides them
-- the system may present interaction through character identity
-- character selection is part of the experience layer, not an afterthought
-
-## Design implication
-
-When building interface surfaces, do not treat characters as campaign art only.
-Treat them as interaction architecture.
-
-That means:
-- copy
-- tone
-- onboarding
-- guidance
-- trust signals
-- choice architecture
-
-all need to reflect the role of characters as part of the system.
+---
 
 ## One-line definition
 
-The TMIB character layer is the personality surface of MMD — the human-facing interface through which users experience a controlled operating system.
+The MMD character layer is the personality surface of the platform — a structured system of route guides, continuity roles, authority figures, and lane-specific identities that make the operating system feel human without making it chaotic.
