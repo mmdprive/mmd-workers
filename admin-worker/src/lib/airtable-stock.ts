@@ -29,6 +29,8 @@ const SHOP_TABLE = {
   products: "tblzsmNLfP6J0kQ90",
   batches: "tblwFgl4et1TOgtNn",
   movements: "tblASifwHdArNKQP2",
+  supplierLedger: "tbl2hqvi2hmk3wpe0",
+  payouts: "tblJF9dH59FK31dgA",
 };
 
 const MOVEMENT_FIELD = {
@@ -43,6 +45,26 @@ const MOVEMENT_FIELD = {
   referenceType: "fld6bdKAAa1sOYw0Q",
   referenceId: "flddxY12JXrNsAUpE",
   note: "fldmnXBNlVcDdvkPh",
+};
+
+const LEDGER_FIELD = {
+  entry: "fldw77M92Aoz2Kzdt",
+  supplier: "fldwv8SHlbizOfWgm",
+  amountOwed: "fldXX85oksNP4yinL",
+  status: "fld5c5KU1zqW5azXM",
+  date: "fldD8EbMb2jegXKXn",
+  note: "fldIqoa0mDMPIEmgx",
+};
+
+const PAYOUT_FIELD = {
+  payoutId: "fldTjVmKD02E7YZYz",
+  supplier: "fldWjhkv2uGCeDWGN",
+  payoutDate: "fldil2gXeLm2UXwpG",
+  amount: "flddxwAqW0JQFTcUF",
+  method: "fldEnjFcUSgoMsmJ2",
+  reference: "fldFrVOU8dfDgHDM4",
+  status: "fldgo6dkYaHg8pgSr",
+  note: "fld39Fk4QjhDELJW5",
 };
 
 type AirtableRecord = { id: string; fields: Record<string, any> };
@@ -289,6 +311,14 @@ async function createStockMovement(env: Env, input: {
   ]);
 }
 
+function ledgerBelongsToSupplier(record: AirtableRecord, supplierId: string): boolean {
+  return linkedIds(record.fields?.[LEDGER_FIELD.supplier]).includes(supplierId);
+}
+
+function ledgerIsOpen(record: AirtableRecord): boolean {
+  return String(record.fields?.[LEDGER_FIELD.status] || "") === "open";
+}
+
 export async function listStock(env: Env): Promise<StockListResponse> {
   const [batchRecords, productRecords] = await Promise.all([
     airtableList(env, env.AIRTABLE_TABLE_MMD_SHOP_INVENTORY_BATCHES),
@@ -514,4 +544,90 @@ export async function deductStock(env: Env, payload: {
   });
 
   return { ok: true, batch_id: payload.batch_id, previous_qty: currentQty, next_qty: nextQty };
+}
+
+export async function createLockedSupplierPayout(env: Env, payload: {
+  supplier_id: string;
+  amount?: number;
+  payment_method?: string;
+  payment_reference?: string;
+  note?: string;
+}) {
+  if (!payload.supplier_id) {
+    throw new Error("supplier_id is required");
+  }
+
+  const requestedAmount = payload.amount === undefined ? null : Number(payload.amount || 0);
+  if (requestedAmount !== null && requestedAmount <= 0) {
+    throw new Error("amount must be positive when provided");
+  }
+
+  const ledgerRecords = await airtableList(env, SHOP_TABLE.supplierLedger);
+  const openLedgers = ledgerRecords.filter((record) => ledgerBelongsToSupplier(record, payload.supplier_id) && ledgerIsOpen(record));
+  const openTotal = openLedgers.reduce((sum, record) => sum + Number(record.fields?.[LEDGER_FIELD.amountOwed] || 0), 0);
+
+  if (openLedgers.length === 0 || openTotal <= 0) {
+    throw new Error("no open supplier ledger balance to settle");
+  }
+
+  if (requestedAmount !== null && Math.abs(requestedAmount - openTotal) > 0.01) {
+    throw new Error(`payout amount must exactly match open balance: requested=${requestedAmount}, open=${openTotal}`);
+  }
+
+  const payoutId = makeId("payout");
+  const note = [
+    payload.note || "Supplier payout locked and settled by admin-worker",
+    `settled_ledgers=${openLedgers.map((record) => record.id).join(",")}`,
+  ].join("\n");
+
+  const payout = await airtableCreate(env, SHOP_TABLE.payouts, [
+    {
+      fields: {
+        [PAYOUT_FIELD.payoutId]: payoutId,
+        [PAYOUT_FIELD.supplier]: [payload.supplier_id],
+        [PAYOUT_FIELD.payoutDate]: todayIsoDate(),
+        [PAYOUT_FIELD.amount]: openTotal,
+        [PAYOUT_FIELD.method]: payload.payment_method || "manual",
+        [PAYOUT_FIELD.reference]: payload.payment_reference || payoutId,
+        [PAYOUT_FIELD.status]: "paid",
+        [PAYOUT_FIELD.note]: note,
+      },
+    },
+  ]);
+
+  const settleNote = `Settled by payout ${payoutId} on ${todayIsoDate()}`;
+  const chunks: Array<Array<{ id: string; fields: Record<string, any> }>> = [];
+  let current: Array<{ id: string; fields: Record<string, any> }> = [];
+
+  for (const record of openLedgers) {
+    current.push({
+      id: record.id,
+      fields: {
+        [LEDGER_FIELD.status]: "settled",
+        [LEDGER_FIELD.note]: [String(record.fields?.[LEDGER_FIELD.note] || ""), settleNote].filter(Boolean).join("\n"),
+      },
+    });
+
+    if (current.length === 10) {
+      chunks.push(current);
+      current = [];
+    }
+  }
+
+  if (current.length) chunks.push(current);
+
+  for (const chunk of chunks) {
+    await airtablePatch(env, SHOP_TABLE.supplierLedger, chunk);
+  }
+
+  return {
+    ok: true,
+    payout: payout.records?.[0] || null,
+    payout_id: payoutId,
+    supplier_id: payload.supplier_id,
+    settled_ledger_count: openLedgers.length,
+    settled_ledger_ids: openLedgers.map((record) => record.id),
+    amount_paid: openTotal,
+    balance_after: 0,
+  };
 }
