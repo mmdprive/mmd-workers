@@ -549,245 +549,508 @@ function renderCreateSessionPage(method) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MMD Admin สร้างเซสชัน</title>
+    <title>MMD Admin · สร้างเซสชัน</title>
     <style>
+      @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Montserrat:wght@300;400;500;600&display=swap');
+
       :root {
         color-scheme: dark;
-        --bg: #08070a;
-        --panel: rgba(19,15,24,.82);
-        --line: rgba(247,240,232,.14);
-        --text: #f7f0e8;
-        --muted: #c4b3a7;
-        --gold: #d1a66a;
-        --rose: #a45b5b;
-        --success: #9ad7b2;
+        --bg: #030204;
+        --panel: rgba(10,8,13,.94);
+        --panel-alt: rgba(14,11,18,.96);
+        --line: rgba(196,164,110,.18);
+        --line-bright: rgba(196,164,110,.42);
+        --text: #f0e8dc;
+        --muted: #9a8a7c;
+        --gold: #c4a46e;
+        --gold-bright: #e2c48a;
+        --gold-dim: rgba(196,164,110,.55);
+        --rose: #8a4040;
+        --success: #6ab88a;
+        --card-bg: linear-gradient(135deg, #0c0a10 0%, #100d16 50%, #090708 100%);
       }
-      * { box-sizing: border-box; }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
       body {
-        margin: 0;
         min-height: 100vh;
-        padding: 24px;
         color: var(--text);
         background:
-          radial-gradient(circle at top, rgba(164,91,91,.18), transparent 28%),
-          radial-gradient(circle at bottom right, rgba(95,127,132,.12), transparent 30%),
-          linear-gradient(180deg, #110d14 0%, #09080d 52%, #060507 100%);
-        font-family: Baskerville, "Iowan Old Style", Palatino, Georgia, serif;
+          radial-gradient(ellipse 60% 40% at 20% -10%, rgba(196,164,110,.07) 0%, transparent 60%),
+          radial-gradient(ellipse 50% 50% at 80% 110%, rgba(196,164,110,.05) 0%, transparent 55%),
+          #030204;
+        font-family: 'Montserrat', "Avenir Next", "Helvetica Neue", sans-serif;
+        font-size: 14px;
+        letter-spacing: .01em;
       }
-      .shell {
-        width: min(100%, 980px);
+
+      /* ── PAGE LAYOUT ── */
+      .page {
+        width: min(100%, 1020px);
         margin: 0 auto;
-        padding: 32px;
-        border: 1px solid var(--line);
-        border-radius: 28px;
-        background: var(--panel);
-        box-shadow: 0 24px 80px rgba(0,0,0,.35);
-        backdrop-filter: blur(18px);
+        padding: 40px 24px 80px;
       }
-      .topbar {
+
+      /* ── HEADER CARD ── */
+      .header-card {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--card-bg);
+        padding: 36px 40px 32px;
+        margin-bottom: 28px;
+        box-shadow:
+          0 0 0 1px rgba(196,164,110,.06) inset,
+          0 32px 64px rgba(0,0,0,.6),
+          0 0 80px rgba(196,164,110,.03);
+      }
+      .header-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 70% 120% at 100% 50%, rgba(196,164,110,.06) 0%, transparent 60%);
+        pointer-events: none;
+      }
+      .header-card::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(196,164,110,.5) 40%, rgba(226,196,138,.8) 60%, transparent);
+      }
+
+      .header-top {
         display: flex;
         justify-content: space-between;
-        gap: 16px;
-        align-items: center;
-        margin-bottom: 24px;
+        align-items: flex-start;
+        gap: 20px;
       }
-      .kicker {
-        margin: 0 0 10px;
-        color: var(--gold);
-        font: 600 .8rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif;
-        letter-spacing: .24em;
+
+      /* logo / emblem */
+      .emblem {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .emblem-icon {
+        width: 38px; height: 26px;
+        background: linear-gradient(135deg, #1a1620, #0e0c12);
+        border: 1px solid var(--line-bright);
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,.5), 0 0 0 1px rgba(196,164,110,.1) inset;
+        position: relative;
+        overflow: hidden;
+      }
+      .emblem-icon::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 50%;
+        background: linear-gradient(180deg, rgba(196,164,110,.14), transparent);
+        border-radius: 4px 4px 0 0;
+      }
+      .emblem-chip {
+        width: 10px; height: 8px;
+        background: linear-gradient(135deg, #c4a46e 0%, #8a6e42 100%);
+        border-radius: 2px;
+        box-shadow: 0 1px 3px rgba(0,0,0,.4);
+        z-index: 1;
+      }
+      .emblem-text {
+        font-family: 'Montserrat', sans-serif;
+        font-size: .62rem;
+        font-weight: 600;
+        letter-spacing: .28em;
         text-transform: uppercase;
+        color: var(--gold);
+      }
+      .emblem-dot {
+        width: 3px; height: 3px;
+        border-radius: 50%;
+        background: var(--gold-dim);
+        margin: 0 2px;
+      }
+
+      .header-info { flex: 1; min-width: 0; }
+
+      .kicker {
+        font-family: 'Montserrat', sans-serif;
+        font-size: .65rem;
+        font-weight: 500;
+        letter-spacing: .3em;
+        text-transform: uppercase;
+        color: var(--gold-dim);
+        margin-bottom: 10px;
       }
       h1 {
-        margin: 0;
-        font-size: clamp(2.1rem, 7vw, 4rem);
+        font-family: 'Cormorant Garamond', Baskerville, Georgia, serif;
+        font-size: clamp(2.4rem, 6vw, 4rem);
+        font-weight: 300;
+        letter-spacing: -.02em;
         line-height: .95;
-        letter-spacing: -.04em;
+        color: var(--text);
+      }
+      h1 em {
+        font-style: italic;
+        color: var(--gold-bright);
       }
       .lead {
-        margin: 16px 0 0;
+        margin-top: 14px;
         color: var(--muted);
-        line-height: 1.7;
-        max-width: 60ch;
+        font-size: .82rem;
+        line-height: 1.75;
+        max-width: 58ch;
+        font-weight: 300;
       }
-      form {
-        display: grid;
-        gap: 18px;
-        margin-top: 28px;
+
+      /* ── DIVIDER ── */
+      .divider {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--line) 30%, var(--line) 70%, transparent);
+        margin: 24px 0;
       }
+
+      /* ── SECTION ── */
+      .section {
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: var(--panel);
+        overflow: hidden;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 32px rgba(0,0,0,.35);
+      }
+      .section-header {
+        padding: 18px 24px 16px;
+        background: rgba(196,164,110,.03);
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .section-dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--gold);
+        box-shadow: 0 0 6px rgba(196,164,110,.6);
+        flex-shrink: 0;
+      }
+      .section-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: .65rem;
+        font-weight: 600;
+        letter-spacing: .28em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+      .section-body {
+        padding: 24px;
+      }
+
+      /* ── FORM GRID ── */
       .grid {
         display: grid;
         gap: 16px;
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      .grid-full {
-        grid-column: 1 / -1;
-      }
+      .grid-full { grid-column: 1 / -1; }
+
+      /* ── LABELS & INPUTS ── */
       label {
         display: grid;
-        gap: 8px;
-        color: var(--gold);
-        font: 600 .78rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif;
-        letter-spacing: .16em;
+        gap: 7px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: .62rem;
+        font-weight: 600;
+        letter-spacing: .22em;
         text-transform: uppercase;
+        color: var(--gold-dim);
       }
-      input, textarea {
+      input, textarea, select {
         width: 100%;
-        min-height: 52px;
-        padding: 14px 16px;
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        background: rgba(7,6,10,.72);
+        padding: 13px 16px;
+        border: 1px solid rgba(196,164,110,.15);
+        border-radius: 12px;
+        background: rgba(5,4,8,.8);
         color: var(--text);
-        font: inherit;
+        font-family: 'Montserrat', sans-serif;
+        font-size: .88rem;
+        font-weight: 300;
+        transition: border-color .2s, box-shadow .2s;
+        outline: none;
+        appearance: none;
       }
+      input:focus, textarea:focus, select:focus {
+        border-color: rgba(196,164,110,.5);
+        box-shadow: 0 0 0 3px rgba(196,164,110,.07), 0 0 20px rgba(196,164,110,.04);
+      }
+      input::placeholder { color: rgba(154,138,124,.4); }
       textarea {
         min-height: 110px;
         resize: vertical;
+        line-height: 1.6;
       }
-      .actions {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-      button {
-        min-height: 48px;
-        padding: 0 18px;
-        border-radius: 999px;
-        border: 1px solid rgba(209,166,106,.36);
-        background: linear-gradient(135deg, rgba(209,166,106,.24), rgba(164,91,91,.28));
-        color: var(--text);
-        font: 600 .92rem/1 "Avenir Next Condensed", "Gill Sans", sans-serif;
-        letter-spacing: .12em;
-        text-transform: uppercase;
+      select {
+        min-height: 110px;
         cursor: pointer;
       }
-      .ghost { background: transparent; }
+      select option {
+        background: #0c0a10;
+        padding: 6px 8px;
+      }
+
+      /* ── ACTIONS ── */
+      .actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding-top: 8px;
+      }
+
+      button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 44px;
+        padding: 0 22px;
+        border-radius: 999px;
+        border: 1px solid var(--line-bright);
+        background: linear-gradient(135deg, rgba(196,164,110,.18) 0%, rgba(196,164,110,.08) 100%);
+        color: var(--gold-bright);
+        font-family: 'Montserrat', sans-serif;
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .22em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: background .2s, border-color .2s, box-shadow .2s, opacity .2s;
+        white-space: nowrap;
+      }
+      button:hover {
+        background: linear-gradient(135deg, rgba(196,164,110,.28) 0%, rgba(196,164,110,.14) 100%);
+        border-color: var(--gold);
+        box-shadow: 0 0 20px rgba(196,164,110,.12);
+      }
+      button:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+      }
+
+      button.primary {
+        background: linear-gradient(135deg, #c4a46e 0%, #a07840 100%);
+        border-color: #c4a46e;
+        color: #0c0a10;
+        font-weight: 700;
+        box-shadow: 0 4px 20px rgba(196,164,110,.28);
+      }
+      button.primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, #d4b47e 0%, #b08850 100%);
+        box-shadow: 0 6px 28px rgba(196,164,110,.40);
+      }
+
+      button.ghost {
+        background: transparent;
+        border-color: rgba(196,164,110,.2);
+        color: var(--muted);
+        font-size: .62rem;
+      }
+      button.ghost:hover { border-color: var(--line-bright); color: var(--gold-bright); }
+
+      /* ── STATUS ── */
       .status {
+        font-size: .8rem;
+        font-weight: 400;
+        color: var(--muted);
         min-height: 1.2em;
-        margin: 0;
-        color: var(--muted);
+        padding: 2px 0;
       }
-      .status.error { color: #f2b0b0; }
+      .status.error { color: #e08080; }
       .status.success { color: var(--success); }
+
+      /* ── HINT ── */
       .hint {
-        margin: 0;
+        font-size: .78rem;
+        font-weight: 300;
         color: var(--muted);
-        font-size: .92rem;
+        line-height: 1.65;
+        padding: 2px 0;
       }
+      .hint code {
+        font-family: SFMono-Regular, Consolas, Menlo, monospace;
+        font-size: .82em;
+        color: var(--gold-dim);
+        background: rgba(196,164,110,.08);
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+
+      /* ── RESULT PRE ── */
+      .result-wrap { margin-top: 20px; }
       pre {
         overflow: auto;
-        padding: 18px;
-        border-radius: 20px;
+        padding: 20px 24px;
+        border-radius: 16px;
         border: 1px solid var(--line);
-        background: rgba(7,6,10,.72);
+        background: rgba(3,2,4,.85);
         color: var(--text);
-        font: .9rem/1.6 SFMono-Regular, Consolas, Menlo, monospace;
+        font-family: SFMono-Regular, Consolas, Menlo, monospace;
+        font-size: .82rem;
+        line-height: 1.7;
+        box-shadow: 0 4px 24px rgba(0,0,0,.4);
       }
-      @media (max-width: 720px) {
+
+      /* ── CLEAR AUTH BUTTON (top-right) ── */
+      .header-actions { flex-shrink: 0; padding-top: 4px; }
+
+      /* ── RESPONSIVE ── */
+      @media (max-width: 640px) {
+        .page { padding: 20px 16px 60px; }
+        .header-card { padding: 24px 20px 22px; }
         .grid { grid-template-columns: 1fr; }
-        .topbar { align-items: flex-start; flex-direction: column; }
+        .header-top { flex-direction: column; }
+        .section-body { padding: 18px 16px; }
       }
     </style>
   </head>
   <body>
-    <main class="shell">
-      <div class="topbar">
-        <div>
-          <p class="kicker">Internal Admin / Jobs</p>
-          <h1>สร้างเซสชัน</h1>
-          <p class="lead">เปิดหน้านี้ในเบราว์เซอร์ ใส่ Bearer Token หรือ Confirm Key หนึ่งครั้ง แล้วค่อยสร้างเซสชันได้เลย หน้าเดียวกันนี้จะยิงกลับมาที่ path เดิมพร้อม auth ที่เก็บไว้ใน browser session.</p>
+    <div class="page">
+
+      <!-- ── HEADER CARD ── -->
+      <div class="header-card">
+        <div class="header-top">
+          <div class="header-info">
+            <div class="emblem">
+              <div class="emblem-icon"><div class="emblem-chip"></div></div>
+              <span class="emblem-text">Blackcard</span>
+              <span class="emblem-dot"></span>
+              <span class="emblem-text" style="color:var(--muted);letter-spacing:.18em">Exclusive</span>
+            </div>
+            <p class="kicker">Internal Admin &nbsp;/&nbsp; Jobs</p>
+            <h1>สร้าง<em>เซสชัน</em></h1>
+            <p class="lead">เปิดหน้านี้ในเบราว์เซอร์ ใส่ Bearer Token หรือ Confirm Key หนึ่งครั้ง แล้วค่อยสร้างเซสชันได้เลย หน้าเดียวกันนี้จะยิงกลับมาที่ path เดิมพร้อม auth ที่เก็บไว้ใน browser session.</p>
+          </div>
+          <div class="header-actions">
+            <button id="clearAuth" class="ghost" type="button">ล้าง Auth</button>
+          </div>
         </div>
-        <button id="clearAuth" class="ghost" type="button">ล้าง Auth</button>
       </div>
 
-      <form id="auth-form">
-        <div class="grid">
-          <label>
-            Bearer Token
-            <input id="bearer" name="bearer" type="password" autocomplete="off" />
-          </label>
-          <label>
-            Confirm Key
-            <input id="confirmKey" name="confirmKey" type="password" autocomplete="off" />
-          </label>
+      <!-- ── AUTH SECTION ── -->
+      <div class="section">
+        <div class="section-header">
+          <span class="section-dot"></span>
+          <span class="section-title">Authentication</span>
         </div>
-        <p class="hint">ใส่อย่างใดอย่างหนึ่งก็พอ และค่าจะถูกเก็บไว้เฉพาะ browser session นี้เท่านั้น</p>
-      </form>
-
-      <form id="create-session-form">
-        <div class="grid">
-          <label>
-            ค้นหา Member
-            <input id="member_search" name="member_search" type="text" placeholder="ชื่อ, nickname, memberstack id, telegram" />
-          </label>
-          <label>
-            ค้นหา Model
-            <input id="model_search" name="model_search" type="text" placeholder="ชื่อ, nickname, telegram, unique key" />
-          </label>
-          <label class="grid-full">
-            ผลการค้นหา Member
-            <select id="member_results" size="5"></select>
-          </label>
-          <label class="grid-full">
-            ผลการค้นหา Model
-            <select id="model_results" size="5"></select>
-          </label>
-          <label>
-            Memberstack ID
-            <input id="memberstack_id" name="memberstack_id" type="text" required />
-          </label>
-          <label>
-            Model ID
-            <input id="model_id" name="model_id" type="text" required />
-          </label>
-          <label>
-            จำนวนเงิน THB
-            <input id="amount_thb" name="amount_thb" type="number" min="1" step="1" required />
-          </label>
-          <label>
-            จ่ายโมเดล THB
-            <input id="pay_model_thb" name="pay_model_thb" type="number" min="0" step="1" />
-          </label>
-          <label>
-            Currency
-            <input id="currency" name="currency" type="text" value="THB" />
-          </label>
-          <label>
-            Payment Ref
-            <input id="payment_ref" name="payment_ref" type="text" />
-          </label>
-          <label>
-            Session ID
-            <input id="session_id" name="session_id" type="text" />
-          </label>
-          <label>
-            Return URL
-            <input id="return_url" name="return_url" type="url" />
-          </label>
-          <label class="grid-full">
-            Cancel URL
-            <input id="cancel_url" name="cancel_url" type="url" />
-          </label>
-          <label class="grid-full">
-            Metadata JSON
-            <textarea id="metadata" name="metadata" placeholder='{"source":"manual_immigrate","line_user_id":"..."}'></textarea>
-          </label>
+        <div class="section-body">
+          <form id="auth-form" style="display:contents">
+            <div class="grid" style="margin-bottom:14px">
+              <label>
+                Bearer Token
+                <input id="bearer" name="bearer" type="password" autocomplete="off" placeholder="••••••••••••" />
+              </label>
+              <label>
+                Confirm Key
+                <input id="confirmKey" name="confirmKey" type="password" autocomplete="off" placeholder="••••••••••••" />
+              </label>
+            </div>
+            <p class="hint">ใส่อย่างใดอย่างหนึ่งก็พอ — ค่าจะถูกเก็บเฉพาะ <code>sessionStorage</code> ของ browser นี้เท่านั้น</p>
+          </form>
         </div>
+      </div>
 
-        <p class="hint">บังคับกรอก <code>memberstack_id</code>, <code>model_id</code>, และ <code>amount_thb</code> ส่วน metadata ไม่บังคับ แต่ถ้าใส่ต้องเป็น JSON ที่ถูกต้อง</p>
-
-        <div class="actions">
-          <button id="search_member" class="ghost" type="button">ค้นหา Member</button>
-          <button id="search_model" class="ghost" type="button">ค้นหา Model</button>
-          <button id="submit" type="submit">สร้างเซสชัน</button>
-          <p id="status" class="status" role="status"></p>
+      <!-- ── CREATE SESSION SECTION ── -->
+      <div class="section">
+        <div class="section-header">
+          <span class="section-dot"></span>
+          <span class="section-title">Create Session</span>
         </div>
-      </form>
+        <div class="section-body">
+          <form id="create-session-form">
+            <div class="grid">
+              <label>
+                ค้นหา Member
+                <input id="member_search" name="member_search" type="text" placeholder="ชื่อ, nickname, memberstack id, telegram" />
+              </label>
+              <label>
+                ค้นหา Model
+                <input id="model_search" name="model_search" type="text" placeholder="ชื่อ, nickname, telegram, unique key" />
+              </label>
+              <label class="grid-full">
+                ผลการค้นหา Member
+                <select id="member_results" size="5"></select>
+              </label>
+              <label class="grid-full">
+                ผลการค้นหา Model
+                <select id="model_results" size="5"></select>
+              </label>
+              <label>
+                Memberstack ID
+                <input id="memberstack_id" name="memberstack_id" type="text" required />
+              </label>
+              <label>
+                Model ID
+                <input id="model_id" name="model_id" type="text" required />
+              </label>
+              <label>
+                จำนวนเงิน THB
+                <input id="amount_thb" name="amount_thb" type="number" min="1" step="1" required />
+              </label>
+              <label>
+                จ่ายโมเดล THB
+                <input id="pay_model_thb" name="pay_model_thb" type="number" min="0" step="1" />
+              </label>
+              <label>
+                Currency
+                <input id="currency" name="currency" type="text" value="THB" />
+              </label>
+              <label>
+                Payment Ref
+                <input id="payment_ref" name="payment_ref" type="text" />
+              </label>
+              <label>
+                Session ID
+                <input id="session_id" name="session_id" type="text" />
+              </label>
+              <label>
+                Return URL
+                <input id="return_url" name="return_url" type="url" />
+              </label>
+              <label class="grid-full">
+                Cancel URL
+                <input id="cancel_url" name="cancel_url" type="url" />
+              </label>
+              <label class="grid-full">
+                Metadata JSON
+                <textarea id="metadata" name="metadata" placeholder='{"source":"manual_immigrate","line_user_id":"..."}'></textarea>
+              </label>
+            </div>
 
-      <pre id="result">${escapeHtml("รอการส่งข้อมูล...")}</pre>
-    </main>
+            <p class="hint" style="margin-top:4px">บังคับกรอก <code>memberstack_id</code>, <code>model_id</code>, และ <code>amount_thb</code> — metadata ไม่บังคับ แต่ถ้าใส่ต้องเป็น JSON ที่ถูกต้อง</p>
+
+            <div class="actions" style="margin-top:20px">
+              <button id="search_member" type="button">ค้นหา Member</button>
+              <button id="search_model" type="button">ค้นหา Model</button>
+              <button id="submit" class="primary" type="submit">สร้างเซสชัน</button>
+              <p id="status" class="status" role="status"></p>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- ── RESULT ── -->
+      <div class="result-wrap">
+        <pre id="result">${escapeHtml("รอการส่งข้อมูล...")}</pre>
+      </div>
+
+    </div><!-- /.page -->
 
     <script>
       (() => {
