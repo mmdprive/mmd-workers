@@ -6,6 +6,10 @@ main = "src/index.js"
 compatibility_date = "2026-01-01"
 workers_dev = true
 
+[[services]]
+binding = "TELEGRAM_WORKER"
+service = "telegram-worker"
+
 # ใช้สำหรับ CORS (browser calls)
 [vars]
 ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
@@ -16,6 +20,24 @@ TELEGRAM_INTERNAL_SEND_URL = "https://telegram-worker.malemodel-bkk.workers.dev/
 
 # Airtable
 AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
+AIRTABLE_TABLE_PAYMENTS = "tblWGGJJOx5eBvBZJ"
+AIRTABLE_TABLE_SESSIONS = "tblC98mKWbzmPuNzX"
+AIRTABLE_TABLE_POINTS_LEDGER = "points_ledger"
+AT_SESSIONS__SESSION_ID = "fldLTq2kZbyRv22IA"
+AT_SESSIONS__STATUS = "fldHAlxnRfpKucnNV"
+AT_SESSIONS__PACKAGE_CODE = "fldp6xNSvxDh5pjR9"
+AT_SESSIONS__AMOUNT_THB = "fldhwC79ndbnEXSZz"
+AT_SESSIONS__PAYMENT_STATUS = "fldTY5lE6m0kQf72n"
+AT_SESSIONS__PAYMENT_REF = "fldojgjSQLaO0uQLX"
+AT_SESSIONS__MEMBERSTACK_ID = "fldjelgJTzCHSCWZ0"
+AT_PAYMENTS__PAYMENT_REF = "fldOO6SY49iDw8VBZ"
+AT_PAYMENTS__PAYMENT_DATE = "fld3yAwxIu2dkw7fO"
+AT_PAYMENTS__AMOUNT = "fldvCSwrUW8OMAooS"
+AT_PAYMENTS__PAYMENT_STATUS = "fldEJ1hmm7KwWuI6q"
+AT_PAYMENTS__PAYMENT_METHOD = "fldsblzIn0wzan3c9"
+AT_PAYMENTS__VERIFICATION_STATUS = "fldJ7a0Ube9F0bmRy"
+AT_PAYMENTS__PACKAGE_CODE = "fldfyHYVrzbGPvMJR"
+AT_PAYMENTS__CREATED_AT = "flduxcPpowBxEZSLu"
 
 # Writer table IDs (LOCK)
 AIRTABLE_TABLE_CONSOLE_INBOX_ID = "tblFHmfpB2TTrzO2e"
@@ -24,9 +46,62 @@ AIRTABLE_TABLE_PAYMENT_PROOFS_ID = "tblfJfM4Sqag9zrLi"
 # Optional table names (ถ้าคุณใช้ name-based endpoints)
 AIRTABLE_TABLE_MEMBERS = "members"
 AIRTABLE_TABLE_MODELS = "models"
+AIRTABLE_TABLE_CLIENTS = "tblVv58TCbwh5j1fS"
+AIRTABLE_TABLE_INTERNAL_NOTES = "tbl1Tt1IXDc9k0zxK"
 
 # ---- Secrets (set via wrangler secret) ----
 # ADMIN_BEARER
 # CONFIRM_KEY
 # AIRTABLE_API_KEY
 # INTERNAL_TOKEN
+
+[[custom_domains]]
+name = "admin-worker.mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/internal/admin/jobs/create-session*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/admin/jobs/create-session*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/internal/admin/notes-hub*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/admin/notes-hub*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/v1/admin/clients/list*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/v1/admin/clients/list*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/v1/admin/models/list*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/v1/admin/models/list*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/v1/admin/notes/context*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/v1/admin/notes/context*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/api/member/*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/api/member/*"
+zone_name = "mmdbkk.com"
