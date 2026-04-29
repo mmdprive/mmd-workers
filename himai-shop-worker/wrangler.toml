@@ -1,0 +1,28 @@
+name = "himai-shop-worker"
+main = "src/index.js"
+compatibility_date = "2026-04-27"
+workers_dev = true
+
+routes = [
+  { pattern = "himai-shop-worker.mmdbkk.com", custom_domain = true },
+  # Compatibility for the current Webflow embed on /ceo/dashboard.
+  { pattern = "admin-worker.mmdbkk.com", custom_domain = true }
+]
+
+[vars]
+APP_NAME = "Himai Shop"
+ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
+ADMIN_DASHBOARD_UPSTREAM = "https://admin-worker.malemodel-bkk.workers.dev"
+MMD_SHOP_CATALOG_UPSTREAM = "https://himai-chat-worker.malemodel-bkk.workers.dev"
+
+# ---- Secrets (set via wrangler secret) ----
+# ADMIN_BEARER
+# INTERNAL_TOKEN
+
+[[services]]
+binding = "ADMIN_WORKER"
+service = "admin-worker"
+
+[[services]]
+binding = "HIMAI_CHAT_WORKER"
+service = "himai-chat-worker"

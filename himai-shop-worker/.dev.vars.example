@@ -1,0 +1,8 @@
+APP_NAME="Himai Shop"
+ALLOWED_ORIGINS="https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io,http://localhost:3000,http://127.0.0.1:3000"
+ADMIN_DASHBOARD_UPSTREAM="https://admin-worker.malemodel-bkk.workers.dev"
+MMD_SHOP_CATALOG_UPSTREAM="https://himai-chat-worker.malemodel-bkk.workers.dev"
+
+# Secrets
+ADMIN_BEARER=""
+INTERNAL_TOKEN=""

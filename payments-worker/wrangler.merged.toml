@@ -1,5 +1,5 @@
 name = "payments-worker"
-main = "src/index.js"
+main = "index.js"
 compatibility_date = "2026-01-20"
 
 kv_namespaces = [
@@ -7,10 +7,10 @@ kv_namespaces = [
 ]
 
 [vars]
-ALLOWED_ORIGINS = "\"https://mmdprive.com,https://mmdprive.webflow.io,https://mmdbkk.com\""
+ALLOWED_ORIGINS = "\"https://mmdprive.com,https://mmdprive.webflow.io,https://mmdbkk.com,https://www.mmdbkk.com,https://sigil.mmdbkk.com\""
 
-WEB_BASE_URL = "https://mmdprive.webflow.io"
-CONFIRM_BASE_URL = "https://mmdprive.webflow.io"
+WEB_BASE_URL = "https://mmdbkk.com"
+CONFIRM_BASE_URL = "https://mmdbkk.com"
 
 PAY_SESSIONS_TTL_DAYS = "30"
 PAY_TOKEN_TTL_SECONDS = "2592000"
@@ -63,4 +63,3 @@ AT_PAYMENTS__CREATED_AT            = "flduxcPpowBxEZSLu"
 TELEGRAM_CHAT_ID = "-1003546439681"
 TG_THREAD_CONFIRM = "61"
 TG_THREAD_POINTS = "17"
-

@@ -2,14 +2,16 @@
   "name": "mmd-workers",
   "private": true,
   "scripts": {
-    "deploy:payments": "wrangler deploy --config workers/payments-worker/wrangler.toml",
-    "deploy:admin": "wrangler deploy --config workers/admin-worker/wrangler.toml",
-    "deploy:events": "wrangler deploy --config workers/events-worker/wrangler.toml",
-    "deploy:telegram": "wrangler deploy --config workers/telegram-worker/wrangler.toml",
-
-    "dev:payments": "wrangler dev --config workers/payments-worker/wrangler.toml",
-    "dev:admin": "wrangler dev --config workers/admin-worker/wrangler.toml",
-    "dev:events": "wrangler dev --config workers/events-worker/wrangler.toml",
-    "dev:telegram": "wrangler dev --config workers/telegram-worker/wrangler.toml"
+    "deploy:payments": "wrangler deploy --config payments-worker/wrangler.merged.toml",
+    "deploy:admin": "wrangler deploy --config admin-worker/wrangler.toml",
+    "deploy:events": "wrangler deploy --config events-worker/wrangler.toml",
+    "deploy:telegram": "wrangler deploy --config telegram-worker/wrangler.toml",
+    "check:partner-launch-gate": "node scripts/check-partner-launch-gate.mjs",
+    "check:path-move-status": "node scripts/check-path-move-status.mjs",
+    "smoke:partner-commission": "node scripts/partner-commission-smoke.mjs",
+    "dev:payments": "wrangler dev --config payments-worker/wrangler.merged.toml",
+    "dev:admin": "wrangler dev --config admin-worker/wrangler.toml",
+    "dev:events": "wrangler dev --config events-worker/wrangler.toml",
+    "dev:telegram": "wrangler dev --config telegram-worker/wrangler.toml"
   }
 }

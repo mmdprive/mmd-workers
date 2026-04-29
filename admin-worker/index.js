@@ -24,8 +24,6 @@
 //   - immigration layer must not be confused with canonical core contracts
 // ==========================================================
 
-import { demoLinksCreate, demoLinksGet } from "./src/routes/demo-links.js";
-
 const LOCK = "admin-worker-v2026-03-11-full";
 const AIRTABLE_API = "https://api.airtable.com/v0";
 
@@ -56,22 +54,18 @@ export default {
     }
 
     // ------------------------------------------------------
-    // DEMO LINKS (internal tool + public confirm fetch)
-    // ------------------------------------------------------
-    if (method === "POST" && path === "/v1/demo-links/create") {
-      return withCors(await demoLinksCreate(req, env), cors);
-    }
-
-    if (method === "GET" && path === "/v1/demo-links/get") {
-      return withCors(await demoLinksGet(req, env), cors);
-    }
-
-    // ------------------------------------------------------
     // Admin routes
     // ------------------------------------------------------
     if (path.startsWith("/v1/admin/")) {
       if (!isAllowedOrigin(req, env)) {
         return withCors(json({ ok: false, error: "origin_not_allowed" }, 403), cors);
+      }
+
+      if (
+        (method === "GET" || method === "HEAD") &&
+        (path === "/internal/admin/jobs/create-session" || path === "/v1/admin/jobs/create-session")
+      ) {
+        return withCors(renderCreateSessionPage(method), cors);
       }
 
       // ====================================================
@@ -182,6 +176,29 @@ export default {
           );
         } catch (e) {
           return withCors(json({ ok: false, error: String(e?.message || e) }, 500), cors);
+        }
+      }
+
+      // ----------------------------------------------------
+      // CEO Dashboard (INTERNAL_TOKEN auth)
+      // ----------------------------------------------------
+      if (method === "GET" && path === "/v1/admin/dashboard/ceo") {
+        const auth = req.headers.get("Authorization") || "";
+        if (!env.INTERNAL_TOKEN || auth !== `Bearer ${env.INTERNAL_TOKEN}`) {
+          return withCors(json({ ok: false, error: "unauthorized" }, 401), cors);
+        }
+        try {
+          const result = await getDashboardCEO(env);
+          return withCors(json(result), cors);
+        } catch (err) {
+          return withCors(
+            json({
+              ok: false,
+              error: "dashboard_ceo_failed",
+              message: err && err.message ? err.message : String(err),
+            }, 500),
+            cors
+          );
         }
       }
 
@@ -363,6 +380,25 @@ export default {
       }
 
       // ----------------------------------------------------
+      // Admin create-session
+      // ----------------------------------------------------
+      if (
+        method === "POST" &&
+        (path === "/internal/admin/jobs/create-session" ||
+          path === "/v1/admin/jobs/create-session" ||
+          path === "/v1/admin/create-session")
+      ) {
+        const body = await safeJson(req);
+
+        try {
+          const out = await createAdminSession(env, body || {});
+          return withCors(json({ ok: true, layer: "core", ...out }), cors);
+        } catch (e) {
+          return withCors(json({ ok: false, error: String(e?.message || e || "create_session_failed") }, 500), cors);
+        }
+      }
+
+      // ----------------------------------------------------
       // Admin job create
       // ----------------------------------------------------
       if (method === "POST" && path === "/v1/admin/job/create") {
@@ -509,6 +545,374 @@ function absoluteUrl(value, base) {
   return `${base}${raw.startsWith("/") ? "" : "/"}${raw}`;
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderCreateSessionPage(method) {
+  if (method === "HEAD") {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  const html = `<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MMD Admin สร้างเซสชัน</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #08070a;
+        --panel: rgba(19,15,24,.82);
+        --line: rgba(247,240,232,.14);
+        --text: #f7f0e8;
+        --muted: #c4b3a7;
+        --gold: #d1a66a;
+        --success: #9ad7b2;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 24px;
+        color: var(--text);
+        background: radial-gradient(circle at top, rgba(164,91,91,.18), transparent 28%), radial-gradient(circle at bottom right, rgba(95,127,132,.12), transparent 30%), linear-gradient(180deg, #110d14 0%, #09080d 52%, #060507 100%);
+        font-family: Baskerville, "Iowan Old Style", Palatino, Georgia, serif;
+      }
+      .shell {
+        width: min(100%, 1040px);
+        margin: 0 auto;
+        padding: 32px;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--panel);
+        box-shadow: 0 24px 80px rgba(0,0,0,.35);
+        backdrop-filter: blur(18px);
+      }
+      .topbar { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:24px; }
+      .kicker { margin:0 0 10px; color:var(--gold); font:600 .8rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif; letter-spacing:.24em; text-transform:uppercase; }
+      h1 { margin:0; font-size:clamp(2.1rem,7vw,4rem); line-height:.95; letter-spacing:-.04em; }
+      .lead { margin:16px 0 0; color:var(--muted); line-height:1.7; max-width:60ch; }
+      form { display:grid; gap:18px; margin-top:28px; }
+      .grid { display:grid; gap:16px; grid-template-columns:repeat(2, minmax(0,1fr)); }
+      .grid-full { grid-column:1 / -1; }
+      label { display:grid; gap:8px; color:var(--gold); font:600 .78rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif; letter-spacing:.16em; text-transform:uppercase; }
+      input, textarea, select { width:100%; min-height:52px; padding:14px 16px; border:1px solid var(--line); border-radius:16px; background:rgba(7,6,10,.72); color:var(--text); font:inherit; }
+      textarea { min-height:110px; resize:vertical; }
+      select { min-height:148px; padding:10px 12px; }
+      .actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+      button { min-height:48px; padding:0 18px; border-radius:999px; border:1px solid rgba(209,166,106,.36); background:linear-gradient(135deg, rgba(209,166,106,.24), rgba(164,91,91,.28)); color:var(--text); font:600 .92rem/1 "Avenir Next Condensed", "Gill Sans", sans-serif; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; }
+      .ghost { background:transparent; }
+      .status { min-height:1.2em; margin:0; color:var(--muted); }
+      .status.error { color:#f2b0b0; }
+      .status.success { color:var(--success); }
+      .hint { margin:0; color:var(--muted); font-size:.92rem; }
+      .summary-grid { display:grid; gap:14px; grid-template-columns:repeat(2, minmax(0,1fr)); margin-top:18px; }
+      .summary-card { padding:16px 18px; border:1px solid var(--line); border-radius:18px; background:rgba(255,255,255,.03); }
+      .summary-label { margin:0 0 8px; color:var(--gold); font:600 .74rem/1.2 "Avenir Next Condensed", "Gill Sans", sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+      .summary-value { margin:0; color:var(--text); line-height:1.6; white-space:pre-wrap; word-break:break-word; }
+      pre { overflow:auto; padding:18px; border-radius:20px; border:1px solid var(--line); background:rgba(7,6,10,.72); color:var(--text); font:.9rem/1.6 SFMono-Regular, Consolas, Menlo, monospace; }
+      @media (max-width: 720px) { .grid, .summary-grid { grid-template-columns:1fr; } .topbar { align-items:flex-start; flex-direction:column; } }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="topbar">
+        <div>
+          <p class="kicker">Internal Admin / Jobs</p>
+          <h1>สร้างเซสชัน</h1>
+          <p class="lead">กรอก Bearer Token หรือ Confirm Key หนึ่งครั้ง แล้วค้นหา member/model จาก Airtable ได้ทันที ก่อนกดสร้าง confirmation link สำหรับ session ใหม่</p>
+        </div>
+        <button id="clearAuth" class="ghost" type="button">ล้าง Auth</button>
+      </div>
+
+      <form id="auth-form">
+        <div class="grid">
+          <label>Bearer Token<input id="bearer" type="password" autocomplete="off" /></label>
+          <label>Confirm Key<input id="confirmKey" type="password" autocomplete="off" /></label>
+        </div>
+        <p class="hint">ใส่อย่างใดอย่างหนึ่งก็พอ และค่าจะถูกเก็บไว้เฉพาะ browser session นี้เท่านั้น</p>
+      </form>
+
+      <form id="create-session-form">
+        <div class="grid">
+          <label>ค้นหา Member<input id="member_search" type="text" placeholder="ชื่อ, nickname, memberstack id, telegram" /></label>
+          <label>ค้นหา Model<input id="model_search" type="text" placeholder="ชื่อ, nickname, telegram, unique key" /></label>
+          <label class="grid-full">ผลการค้นหา Member<select id="member_results" size="5"></select></label>
+          <label class="grid-full">ผลการค้นหา Model<select id="model_results" size="5"></select></label>
+          <label>Memberstack ID<input id="memberstack_id" type="text" required /></label>
+          <label>Model ID<input id="model_id" type="text" required /></label>
+          <label>จำนวนเงิน THB<input id="amount_thb" type="number" min="1" step="1" required /></label>
+          <label>จ่ายโมเดล THB<input id="pay_model_thb" type="number" min="0" step="1" /></label>
+          <label>Currency<input id="currency" type="text" value="THB" /></label>
+          <label>Payment Ref<input id="payment_ref" type="text" /></label>
+          <label>Session ID<input id="session_id" type="text" /></label>
+          <label>Return URL<input id="return_url" type="url" /></label>
+          <label class="grid-full">Cancel URL<input id="cancel_url" type="url" /></label>
+          <label class="grid-full">Metadata JSON<textarea id="metadata" placeholder='{"source":"manual_immigrate","line_user_id":"..."}'></textarea></label>
+        </div>
+        <p class="hint">บังคับกรอก memberstack_id, model_id และ amount_thb ส่วน metadata ไม่บังคับ แต่ถ้าใส่ต้องเป็น JSON ที่ถูกต้อง</p>
+        <div class="actions">
+          <button id="search_member" class="ghost" type="button">ค้นหา Member</button>
+          <button id="search_model" class="ghost" type="button">ค้นหา Model</button>
+          <button id="submit" type="submit">สร้างเซสชัน</button>
+          <button id="copy_confirmation_url" class="ghost" type="button" disabled>คัดลอก confirmation_url</button>
+          <p id="status" class="status" role="status"></p>
+        </div>
+      </form>
+
+      <div class="summary-grid">
+        <div class="summary-card"><p class="summary-label">Member ที่เลือก</p><p id="member_summary" class="summary-value">ยังไม่ได้เลือก member</p></div>
+        <div class="summary-card"><p class="summary-label">Model ที่เลือก</p><p id="model_summary" class="summary-value">ยังไม่ได้เลือก model</p></div>
+      </div>
+
+      <pre id="result">${escapeHtml("รอการส่งข้อมูล...")}</pre>
+    </main>
+
+    <script>
+      (() => {
+        const KEY = "mmd_admin_create_session_auth_v1";
+        const submit = document.getElementById("submit");
+        const status = document.getElementById("status");
+        const result = document.getElementById("result");
+        const clearAuth = document.getElementById("clearAuth");
+        const searchMemberButton = document.getElementById("search_member");
+        const searchModelButton = document.getElementById("search_model");
+        const copyConfirmationUrlButton = document.getElementById("copy_confirmation_url");
+        const memberSummary = document.getElementById("member_summary");
+        const modelSummary = document.getElementById("model_summary");
+        const bearer = document.getElementById("bearer");
+        const confirmKey = document.getElementById("confirmKey");
+        const form = document.getElementById("create-session-form");
+        const memberSearch = document.getElementById("member_search");
+        const modelSearch = document.getElementById("model_search");
+        const memberResults = document.getElementById("member_results");
+        const modelResults = document.getElementById("model_results");
+
+        function setStatus(message, kind) {
+          status.textContent = message || "";
+          status.className = "status" + (kind ? " " + kind : "");
+        }
+        function setResult(payload) {
+          result.textContent = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+        }
+        function setSelectionSummary(target, lines) {
+          target.textContent = Array.isArray(lines) && lines.length ? lines.filter(Boolean).join("\n") : "-";
+        }
+        function updateCopyButton(payload) {
+          const confirmationUrl = payload && (payload.confirmation_url || payload.confirm_url || "");
+          copyConfirmationUrlButton.disabled = !confirmationUrl;
+          copyConfirmationUrlButton.dataset.url = confirmationUrl || "";
+        }
+        function loadAuth() {
+          try {
+            const saved = JSON.parse(sessionStorage.getItem(KEY) || "null");
+            if (saved && typeof saved === "object") {
+              bearer.value = saved.bearer || "";
+              confirmKey.value = saved.confirmKey || "";
+            }
+          } catch {}
+        }
+        function saveAuth() {
+          sessionStorage.setItem(KEY, JSON.stringify({ bearer: bearer.value.trim(), confirmKey: confirmKey.value.trim() }));
+        }
+        function buildHeaders() {
+          const headers = { "Content-Type": "application/json" };
+          const bearerValue = bearer.value.trim();
+          const confirmKeyValue = confirmKey.value.trim();
+          if (bearerValue) headers.Authorization = "Bearer " + bearerValue;
+          if (confirmKeyValue) headers["X-Confirm-Key"] = confirmKeyValue;
+          return headers;
+        }
+        function applyOptions(select, items, kind) {
+          select.innerHTML = "";
+          if (!Array.isArray(items) || !items.length) {
+            const option = document.createElement("option");
+            option.textContent = kind === "member" ? "ไม่พบ member" : "ไม่พบ model";
+            option.value = "";
+            select.appendChild(option);
+            return;
+          }
+          for (const item of items) {
+            const fields = item && item.fields ? item.fields : {};
+            const label = kind === "member"
+              ? [fields.name || fields.Name || fields.nickname || "Member", fields.memberstack_id || "", fields.telegram_username || fields.telegram_id || ""].filter(Boolean).join(" | ")
+              : [fields.name || fields.Name || fields.nickname || "Model", fields.unique_key || "", fields.telegram_username || fields.telegram_id || ""].filter(Boolean).join(" | ");
+            const option = document.createElement("option");
+            option.value = kind === "member" ? String(fields.memberstack_id || "") : String(item.id || fields.id || "");
+            option.textContent = label;
+            option.dataset.recordId = String(item.id || "");
+            option.dataset.summary = JSON.stringify({
+              kind,
+              recordId: String(item.id || ""),
+              name: String(fields.name || fields.Name || fields.nickname || ""),
+              memberstackId: String(fields.memberstack_id || ""),
+              uniqueKey: String(fields.unique_key || ""),
+              telegram: String(fields.telegram_username || fields.telegram_id || ""),
+            });
+            select.appendChild(option);
+          }
+        }
+        async function runLookup(kind) {
+          const query = (kind === "member" ? memberSearch.value : modelSearch.value).trim();
+          const select = kind === "member" ? memberResults : modelResults;
+          const path = kind === "member" ? "/v1/admin/members/list" : "/v1/admin/models/list";
+          setStatus(kind === "member" ? "กำลังค้นหา member..." : "กำลังค้นหา model...");
+          setResult("Working...");
+          try {
+            const params = new URLSearchParams();
+            if (query) params.set("q", query);
+            params.set("limit", "10");
+            const response = await fetch(path + "?" + params.toString(), { method: "GET", headers: buildHeaders() });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data) {
+              setStatus((data && (data.error?.message || data.error)) || "ค้นหาไม่สำเร็จ", "error");
+              setResult(data || { ok: false, status: response.status });
+              return;
+            }
+            applyOptions(select, data.items || [], kind);
+            setStatus(kind === "member" ? "โหลดรายการ member แล้ว" : "โหลดรายการ model แล้ว", "success");
+            setResult(data);
+          } catch (error) {
+            setStatus(kind === "member" ? "ค้นหา member ไม่สำเร็จ" : "ค้นหา model ไม่สำเร็จ", "error");
+            setResult({ ok: false, error: String(error && error.message ? error.message : error) });
+          }
+        }
+        function readOptionalNumber(id) {
+          const raw = document.getElementById(id).value.trim();
+          if (!raw) return null;
+          const num = Number(raw);
+          return Number.isFinite(num) ? num : NaN;
+        }
+        loadAuth();
+        bearer.addEventListener("change", saveAuth);
+        confirmKey.addEventListener("change", saveAuth);
+        clearAuth.addEventListener("click", () => {
+          sessionStorage.removeItem(KEY);
+          bearer.value = "";
+          confirmKey.value = "";
+          setStatus("ล้าง auth ที่บันทึกไว้แล้ว", "success");
+        });
+        copyConfirmationUrlButton.addEventListener("click", async () => {
+          const url = copyConfirmationUrlButton.dataset.url || "";
+          if (!url) return;
+          try {
+            await navigator.clipboard.writeText(url);
+            setStatus("คัดลอก confirmation_url แล้ว", "success");
+          } catch {
+            setStatus("คัดลอก confirmation_url ไม่สำเร็จ", "error");
+          }
+        });
+        searchMemberButton.addEventListener("click", () => runLookup("member"));
+        searchModelButton.addEventListener("click", () => runLookup("model"));
+        memberResults.addEventListener("change", () => {
+          const option = memberResults.options[memberResults.selectedIndex];
+          if (option && option.value) {
+            document.getElementById("memberstack_id").value = option.value;
+            try {
+              const info = JSON.parse(option.dataset.summary || "{}");
+              setSelectionSummary(memberSummary, [info.name || "Member", info.memberstackId ? "memberstack_id: " + info.memberstackId : "", info.telegram ? "telegram: " + info.telegram : ""]);
+            } catch {}
+            setStatus("เลือก member แล้ว", "success");
+          }
+        });
+        modelResults.addEventListener("change", () => {
+          const option = modelResults.options[modelResults.selectedIndex];
+          if (option && option.value) {
+            document.getElementById("model_id").value = option.dataset.recordId || option.value;
+            try {
+              const info = JSON.parse(option.dataset.summary || "{}");
+              setSelectionSummary(modelSummary, [info.name || "Model", info.recordId ? "record_id: " + info.recordId : "", info.uniqueKey ? "unique_key: " + info.uniqueKey : "", info.telegram ? "telegram: " + info.telegram : ""]);
+            } catch {}
+            setStatus("เลือก model แล้ว", "success");
+          }
+        });
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          setStatus("");
+          saveAuth();
+          if (!bearer.value.trim() && !confirmKey.value.trim()) {
+            setStatus("กรอก Bearer Token หรือ Confirm Key ก่อน", "error");
+            return;
+          }
+          let metadata = {};
+          const metadataRaw = document.getElementById("metadata").value.trim();
+          if (metadataRaw) {
+            try {
+              metadata = JSON.parse(metadataRaw);
+            } catch {
+              setStatus("Metadata JSON ไม่ถูกต้อง", "error");
+              return;
+            }
+          }
+          const payModelThb = readOptionalNumber("pay_model_thb");
+          if (Number.isNaN(payModelThb)) {
+            setStatus("จ่ายโมเดล THB ต้องเป็นตัวเลขที่ถูกต้อง", "error");
+            return;
+          }
+          const payload = {
+            memberstack_id: document.getElementById("memberstack_id").value.trim(),
+            model_id: document.getElementById("model_id").value.trim(),
+            amount_thb: Number(document.getElementById("amount_thb").value),
+            currency: document.getElementById("currency").value.trim() || "THB",
+            payment_ref: document.getElementById("payment_ref").value.trim(),
+            session_id: document.getElementById("session_id").value.trim(),
+            return_url: document.getElementById("return_url").value.trim(),
+            cancel_url: document.getElementById("cancel_url").value.trim(),
+            metadata,
+          };
+          if (payModelThb != null) payload.pay_model_thb = payModelThb;
+          submit.disabled = true;
+          submit.textContent = "กำลังสร้าง...";
+          setStatus("กำลังส่งคำขอ create-session...");
+          setResult("Working...");
+          try {
+            const response = await fetch("/internal/admin/jobs/create-session", { method: "POST", headers: buildHeaders(), body: JSON.stringify(payload) });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data) {
+              updateCopyButton(null);
+              setStatus((data && (data.error?.message || data.error)) || "สร้างเซสชันไม่สำเร็จ", "error");
+              setResult(data || { ok: false, status: response.status });
+              return;
+            }
+            updateCopyButton(data);
+            setStatus("สร้างเซสชันสำเร็จ", "success");
+            setResult(data);
+          } catch (error) {
+            updateCopyButton(null);
+            setStatus("ยังเชื่อม create-session ไม่ได้ตอนนี้", "error");
+            setResult({ ok: false, error: String(error && error.message ? error.message : error) });
+          } finally {
+            submit.disabled = false;
+            submit.textContent = "สร้างเซสชัน";
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 function escHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -642,6 +1046,116 @@ async function airtableList(env, tableName, { q = "", limit = 50, matchFields = 
     fields: rec.fields || {},
     createdTime: rec.createdTime,
   }));
+}
+
+async function airtableListAll(env, tableId) {
+  if (!env.AIRTABLE_API_KEY || !env.AIRTABLE_BASE_ID) return [];
+  const all = [];
+  let offset = "";
+  do {
+    const params = new URLSearchParams();
+    params.set("pageSize", "100");
+    if (offset) params.set("offset", offset);
+    const r = await airtableFetch(env, `/${encodeURIComponent(tableId)}?${params.toString()}`);
+    if (!r.ok) break;
+    const records = r.data?.records || [];
+    for (const rec of records) {
+      all.push({ id: rec.id, fields: rec.fields || {} });
+    }
+    offset = r.data?.offset || "";
+  } while (offset);
+  return all;
+}
+
+async function getDashboardCEO(env) {
+  const [ledgerRecords, payoutRecords, batchRecords] = await Promise.all([
+    airtableListAll(env, "tbl2hqvi2hmk3wpe0"),
+    airtableListAll(env, "tblJF9dH59FK31dgA"),
+    airtableListAll(env, "tblwFgl4et1TOgtNn"),
+  ]);
+
+  let revenue = 0;
+  let cost = 0;
+  let margin = 0;
+  let outstanding = 0;
+  let cashPaid = 0;
+
+  const trendMap = new Map();
+  const supplierMap = new Map();
+
+  for (const rec of ledgerRecords) {
+    const f = rec.fields || {};
+    const status = String(f["fld5c5KU1zqW5azXM"] || "");
+    if (status === "void") continue;
+
+    const date = String(f["fldD8EbMb2jegXKXn"] || "undated");
+    const r = Number(f["fldGUHbjodVKZQuQZ"] || 0);
+    const c = Number(f["fldcic1IRo0hB0A2z"] || 0);
+    const m = Number(f["fldOTobGDmTVJCKTH"] || 0);
+    const owed = Number(f["fldXX85oksNP4yinL"] || 0);
+
+    revenue += r;
+    cost += c;
+    margin += m;
+
+    if (status === "open") {
+      outstanding += owed;
+      const supplierIds = Array.isArray(f["fldwv8SHlbizOfWgm"]) ? f["fldwv8SHlbizOfWgm"] : [];
+      for (const supplierId of supplierIds) {
+        if (!supplierMap.has(supplierId)) {
+          supplierMap.set(supplierId, {
+            supplier_id: supplierId,
+            supplier_name: supplierId,
+            owed: 0,
+            status: "ready_to_pay",
+          });
+        }
+        supplierMap.get(supplierId).owed += owed;
+      }
+    }
+
+    if (!trendMap.has(date)) {
+      trendMap.set(date, { date, revenue: 0, cost: 0, margin: 0 });
+    }
+    const row = trendMap.get(date);
+    row.revenue += r;
+    row.cost += c;
+    row.margin += m;
+  }
+
+  for (const rec of payoutRecords) {
+    const f = rec.fields || {};
+    const status = String(f["fldgo6dkYaHg8pgSr"] || "");
+    if (status === "paid") {
+      cashPaid += Number(f["flddxwAqW0JQFTcUF"] || 0);
+    }
+  }
+
+  const lowStockBatches = batchRecords.filter(
+    (rec) => String(rec.fields["fldYtzXtBvK3HuqQa"] || "") === "Low"
+  ).length;
+
+  const depletedBatches = batchRecords.filter(
+    (rec) => String(rec.fields["fldZW2m1Xq8q0ZH9Z"] || "").toLowerCase() === "depleted"
+  ).length;
+
+  return {
+    ok: true,
+    summary: {
+      revenue,
+      cost,
+      margin,
+      outstanding,
+      cash_paid: cashPaid,
+      net_after_supplier: margin - outstanding,
+      low_stock_batches: lowStockBatches,
+      depleted_batches: depletedBatches,
+    },
+    trend: Array.from(trendMap.values())
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      .slice(-14),
+    supplier_balances: Array.from(supplierMap.values()).sort((a, b) => b.owed - a.owed),
+  };
 }
 
 async function airtableFindOne(env, tableName, filterByFormula) {
@@ -792,6 +1306,50 @@ async function telegramInternalSend(env, payload) {
 /* =========================
    Job create
 ========================= */
+async function createAdminSession(env, body) {
+  const required = ["memberstack_id", "model_id", "amount_thb"];
+  const missing = required.filter((k) => body?.[k] == null || body?.[k] === "");
+  if (missing.length) throw new Error(`missing_required_fields:${missing.join(",")}`);
+
+  const amount = Number(body.amount_thb);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid_amount_thb");
+
+  const payModelAmount = Number(body.pay_model_thb ?? body.pay_model ?? body.model_pay_thb ?? body.model_pay);
+  const hasPayModelAmount = body?.pay_model_thb != null || body?.pay_model != null || body?.model_pay_thb != null || body?.model_pay != null;
+  if (hasPayModelAmount && (!Number.isFinite(payModelAmount) || payModelAmount < 0)) {
+    throw new Error("invalid_pay_model_thb");
+  }
+
+  const payload = {
+    session_id: str(body.session_id || `sess_${crypto.randomUUID()}`),
+    payment_ref: str(body.payment_ref || `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+    memberstack_id: str(body.memberstack_id),
+    model_id: str(body.model_id),
+    amount_thb: amount,
+    pay_model_thb: hasPayModelAmount ? payModelAmount : null,
+    currency: str(body.currency || "THB"),
+    return_url: body.return_url || body.success_url || null,
+    cancel_url: body.cancel_url || null,
+    metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : {},
+  };
+
+  const confirmData = await callPaymentsCreateLink(env, payload);
+  const confirmation_url = confirmData.confirmation_url || confirmData.confirm_url || confirmData.url || confirmData.link || null;
+
+  return {
+    session_id: payload.session_id,
+    payment_ref: payload.payment_ref,
+    amount_thb: payload.amount_thb,
+    pay_model_thb: payload.pay_model_thb,
+    memberstack_id: payload.memberstack_id,
+    model_id: payload.model_id,
+    confirmation_url,
+    confirm_url: confirmData.confirm_url || confirmation_url,
+    short_url: confirmData.short_url || null,
+    payments_response: confirmData,
+  };
+}
+
 async function createAdminJob(env, body) {
   const client_name = strReq(body.client_name, "client_name");
   const model_name = strReq(body.model_name, "model_name");

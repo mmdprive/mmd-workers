@@ -18,7 +18,8 @@ kv_namespaces = [
 TELEGRAM_WORKER_BASE = "https://telegram-worker.malemodel-bkk.workers.dev"
 PAYMENTS_WORKER_BASE = "https://payments-worker.malemodel-bkk.workers.dev"
 ADMIN_WORKER_BASE = "https://admin-worker.malemodel-bkk.workers.dev"
+AIRTABLE_TABLE_PARTNER_COMMISSIONS = "tblbq4M1bhpwU2BGW"
+AIRTABLE_TABLE_MODEL_REFERRALS = "tblrmSsCZxJSCQR9n"
 
 # Airtable/other env names should be set in dashboard or wrangler environment
 # e.g. AIRTABLE_API_KEY, AIRTABLE_BASE_ID, AIRTABLE_TABLE_SESSIONS, AIRTABLE_TABLE_MODELS, AIRTABLE_TABLE_CLIENTS, AIRTABLE_TABLE_ACTIVITY_LOGS
->>>>>>> main

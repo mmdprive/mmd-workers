@@ -119,6 +119,8 @@ MMD should be understood as a multi-lane system, not a single path.
 Public Trust / Entry
 - /trust/inme
 - /start
+- /shop
+- /mmd-shop
 - package / FAQ / contact surfaces
 - chat entry points
 
@@ -146,6 +148,33 @@ System / Internal
 - verification routes
 - internal automation routes
 ```
+
+---
+
+## Shop surfaces
+
+### `/shop`
+
+`/shop` is the canonical Himai Shop entry surface.
+
+This route should support:
+- Himai Shop signup and customer intake
+- handoff to the Himai LINE OA
+- compatibility with the legacy `/shop/signup` worker endpoint
+
+### `/mmd-shop`
+
+`/mmd-shop` is the canonical MMD Shop catalog surface.
+
+This route should support:
+- catalog browsing and filtering
+- compatibility with the existing `/api/mmd-shop/catalog` worker endpoint
+- a clear separation from Himai Shop signup intent
+
+Rule:
+
+**Do not collapse `/shop` and `/mmd-shop` into the same user intent.**
+Himai Shop is the signup/customer intake lane. MMD Shop is the catalog lane.
 
 ---
 

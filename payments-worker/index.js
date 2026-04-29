@@ -4,6 +4,13 @@
  * =========================================================
  */
 
+import {
+  ensureCommissionRowsForSession,
+  mirrorCommissionSnapshot,
+  normalizeCommissionSplits,
+  updateCommissionEligibilityForSession,
+} from "../shared/src/lib/partner-commissions/index.js";
+
 const LOCK = "payments-production-v10-clean";
 const AIRTABLE_API = "https://api.airtable.com/v0";
 
@@ -91,6 +98,11 @@ function isInternalAuthed(req, env) {
   return !!env.INTERNAL_TOKEN && headerToken === env.INTERNAL_TOKEN;
 }
 
+function hasConfirmKey(req, env) {
+  const key = toStr(req.headers.get("X-Confirm-Key"));
+  return !!env.CONFIRM_KEY && key === env.CONFIRM_KEY;
+}
+
 function assertRequired(value, field) {
   if (!toStr(value)) throw new Error(`${field}_required`);
   return value;
@@ -126,12 +138,12 @@ function normalizeStage(value) {
 }
 
 function paymentStatusFromStage(stage) {
-  if (stage === "deposit") return "deposit_paid";
-  if (stage === "final") return "paid";
-  if (stage === "full") return "paid";
-  if (stage === "tips") return "tips_paid";
-  if (stage === "membership") return "paid";
-  return "paid";
+  if (stage === "deposit") return "Deposit Paid";
+  if (stage === "final") return "Paid";
+  if (stage === "full") return "Paid";
+  if (stage === "tips") return "Tips Paid";
+  if (stage === "membership") return "Paid";
+  return "Paid";
 }
 
 function computePoints(env, amountThb) {
@@ -148,7 +160,29 @@ function truthy(v) {
 }
 
 function compact(obj) {
-  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== "")
+  );
+}
+
+function paymentMethodLabel(value) {
+  const method = toStr(value).toLowerCase();
+  if (method === "promptpay") return "PromptPay";
+  if (method === "credit_card") return "Credit Card";
+  if (method === "bank_transfer") return "Bank Transfer";
+  if (method === "paypal") return "PayPal";
+  return value || "PromptPay";
+}
+
+function selectLabel(value) {
+  const raw = toStr(value).toLowerCase();
+  if (raw === "pending") return "Pending";
+  if (raw === "paid") return "Paid";
+  if (raw === "verified") return "Verified";
+  if (raw === "success") return "Success";
+  if (raw === "manual_review") return "Manual Review";
+  if (raw === "manual_slip_submitted") return "Manual Slip Submitted";
+  return value || "";
 }
 
 /* -------------------------------------------------- */
@@ -220,6 +254,17 @@ function buildAbsoluteUrl(value, fallbackBase) {
   return `${fallbackBase}${raw.startsWith("/") ? "" : "/"}${raw}`;
 }
 
+function combineDateAndTime(dateValue, timeValue) {
+  const date = toStr(dateValue);
+  const time = toStr(timeValue);
+  if (!date || !time) return "";
+  const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time;
+  const candidate = `${date}T${normalizedTime}+07:00`;
+  const parsed = new Date(candidate);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString();
+}
+
 function makeSessionId(prefix = "sess") {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
   const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -235,23 +280,23 @@ async function createConfirmTokenRecord(env, token, payload) {
 
 async function createSessionIfMissing(env, payload) {
   const existing = await findSessionBySessionId(env, payload.session_id);
+  const paymentRefField = sessionField(env, "AT_SESSIONS__PAYMENT_REF", "payment_ref");
+  const amountThbField = sessionField(env, "AT_SESSIONS__AMOUNT_THB", "amount_thb");
+  const startAt = combineDateAndTime(payload.job_date, payload.start_time);
+  const endAt = combineDateAndTime(payload.job_date, payload.end_time);
 
   if (existing?.id) {
     await airtablePatch(env, getSessionsTable(env), existing.id, compact({
-      status: payload.status || "pending",
-      "Session Status": payload.status || "pending",
-      "Payment Status": payload.payment_status || "pending",
-      payment_ref: payload.payment_ref,
-      payment_type: payload.payment_type,
-      amount_thb: payload.amount_thb,
+      [paymentRefField]: payload.payment_ref,
+      [amountThbField]: payload.amount_thb,
       pay_model_thb: payload.pay_model_thb,
       "Pay Model": payload.pay_model_thb,
       client_name: payload.client_name,
       model_name: payload.model_name,
       job_type: payload.job_type,
       job_date: payload.job_date,
-      start_time: payload.start_time,
-      end_time: payload.end_time,
+      start_time: startAt || payload.start_time,
+      end_time: endAt || payload.end_time,
       location_name: payload.location_name,
       google_map_url: payload.google_map_url,
       note: payload.note,
@@ -263,20 +308,16 @@ async function createSessionIfMissing(env, payload) {
 
   const created = await airtableCreate(env, getSessionsTable(env), compact({
     session_id: payload.session_id,
-    status: payload.status || "pending",
-    "Session Status": payload.status || "pending",
-    "Payment Status": payload.payment_status || "pending",
-    payment_ref: payload.payment_ref,
-    payment_type: payload.payment_type,
-    amount_thb: payload.amount_thb,
+    [paymentRefField]: payload.payment_ref,
+    [amountThbField]: payload.amount_thb,
     pay_model_thb: payload.pay_model_thb,
     "Pay Model": payload.pay_model_thb,
     client_name: payload.client_name,
     model_name: payload.model_name,
     job_type: payload.job_type,
     job_date: payload.job_date,
-    start_time: payload.start_time,
-    end_time: payload.end_time,
+    start_time: startAt || payload.start_time,
+    end_time: endAt || payload.end_time,
     location_name: payload.location_name,
     google_map_url: payload.google_map_url,
     note: payload.note,
@@ -344,6 +385,14 @@ function getPointsLedgerTable(env) {
   return toStr(env.AIRTABLE_TABLE_POINTS_LEDGER || "points_ledger");
 }
 
+function sessionField(env, envKey, fallback) {
+  return toStr(env?.[envKey] || fallback);
+}
+
+function paymentField(env, envKey, fallback) {
+  return toStr(env?.[envKey] || fallback);
+}
+
 async function airtableFetch(env, path, init = {}) {
   const apiKey = getAirtableApiKey(env);
   const baseId = getAirtableBaseId(env);
@@ -394,24 +443,27 @@ async function airtablePatch(env, table, recordId, fields) {
 
 async function findPaymentByPaymentRef(env, paymentRef) {
   const table = getPaymentsTable(env);
-  const formula = `{payment_ref}='${encodeFormulaValue(paymentRef)}'`;
+  const paymentRefField = paymentField(env, "AT_PAYMENTS__PAYMENT_REF", "Payment Reference");
+  const formula = `{${paymentRefField}}='${encodeFormulaValue(paymentRef)}'`;
   return airtableFindFirstByFormula(env, table, formula);
 }
 
 async function findSuccessfulPaymentBySessionAndType(env, sessionId, stage) {
   const table = getPaymentsTable(env);
+  const paymentStatusField = paymentField(env, "AT_PAYMENTS__PAYMENT_STATUS", "Payment Status");
   const formula =
     `AND(` +
     `{session_id}='${encodeFormulaValue(sessionId)}',` +
     `{payment_type}='${encodeFormulaValue(stage)}',` +
-    `OR({Payment Status}='success',{Payment Status}='paid',{Payment Status}='verified')` +
+    `OR({${paymentStatusField}}='success',{${paymentStatusField}}='paid',{${paymentStatusField}}='verified')` +
     `)`;
   return airtableFindFirstByFormula(env, table, formula);
 }
 
 async function findSessionBySessionId(env, sessionId) {
   const table = getSessionsTable(env);
-  const formula = `{session_id}='${encodeFormulaValue(sessionId)}'`;
+  const sessionIdField = sessionField(env, "AT_SESSIONS__SESSION_ID", "session_id");
+  const formula = `{${sessionIdField}}='${encodeFormulaValue(sessionId)}'`;
   return airtableFindFirstByFormula(env, table, formula);
 }
 
@@ -427,27 +479,17 @@ async function findPointLedgerByPaymentRef(env, paymentRef) {
 async function createOrUpdatePaymentIntent(env, payload) {
   const table = getPaymentsTable(env);
   const existing = await findPaymentByPaymentRef(env, payload.payment_ref);
+  const paymentRefField = paymentField(env, "AT_PAYMENTS__PAYMENT_REF", "Payment Reference");
+  const amountField = paymentField(env, "AT_PAYMENTS__AMOUNT", "Amount");
+  const packageCodeField = paymentField(env, "AT_PAYMENTS__PACKAGE_CODE", "Package Code");
+  const createdAtField = paymentField(env, "AT_PAYMENTS__CREATED_AT", "Created At");
 
   const fields = compact({
-    payment_ref: payload.payment_ref,
+    [paymentRefField]: payload.payment_ref,
     session_id: payload.session_id,
-    payment_stage: payload.payment_stage,
-    payment_type: payload.payment_stage,
-    amount_thb: payload.amount,
-    amount: payload.amount,
-    pay_model_thb: payload.pay_model_thb,
-    "Pay Model": payload.pay_model_thb,
-    member_email: payload.member_email || "",
-    package_code: payload.package_code || "",
-    notes: payload.notes || "",
-    receipt_url: payload.receipt_url || "",
-    "Receipt Photo": payload.receipt_url || "",
-    "Payment Method": payload.payment_method || "promptpay",
-    "Payment Status": payload.payment_status || "pending",
-    "Verification Status": payload.verification_status || "pending",
-    "Payment Intent Status (AI)": payload.intent_status || "manual_review",
-    "Payment Date": payload.paid_at || nowIso(),
-    "Created At": payload.created_at || nowIso(),
+    [amountField]: payload.amount,
+    [packageCodeField]: payload.package_code || "",
+    [createdAtField]: payload.created_at || nowIso(),
   });
 
   if (existing?.id) {
@@ -466,15 +508,18 @@ async function updateSessionFromPayment(env, payload) {
   }
 
   const nextStatus = paymentStatusFromStage(payload.stage);
+  const sessionStatusField = sessionField(env, "AT_SESSIONS__STATUS", "status");
+  const paymentStatusField = sessionField(env, "AT_SESSIONS__PAYMENT_STATUS", "payment_status");
+  const paymentRefField = sessionField(env, "AT_SESSIONS__PAYMENT_REF", "payment_ref");
+  const amountThbField = sessionField(env, "AT_SESSIONS__AMOUNT_THB", "amount_thb");
 
   const fields = compact({
-    status: nextStatus,
+    [sessionStatusField]: nextStatus,
     "Session Status": nextStatus,
-    "Payment Status": nextStatus,
-    payment_ref: payload.payment_ref,
+    [paymentStatusField]: nextStatus,
+    [paymentRefField]: payload.payment_ref,
     last_payment_ref: payload.payment_ref,
-    payment_type: payload.stage,
-    amount_thb: payload.amount_thb,
+    [amountThbField]: payload.amount_thb,
     paid_at: payload.paid_at || nowIso(),
     receipt_url: payload.receipt_url || "",
     member_email: payload.member_email || "",
@@ -661,7 +706,7 @@ async function handleVerify(req, env) {
 }
 
 async function handleNotify(req, env) {
-  if (!isInternalAuthed(req, env)) {
+  if (!isInternalAuthed(req, env) && !hasConfirmKey(req, env)) {
     return withCors(req, env, jsonResponse({ ok: false, error: "unauthorized" }, 401));
   }
 
@@ -677,6 +722,17 @@ async function handleNotify(req, env) {
     const payment_method = toStr(body.payment_method || "promptpay");
     const receipt_url = toStr(body.receipt_url || body.slip_url);
     const paid_at = toStr(body.paid_at || nowIso());
+    const commissionSplits = normalizeCommissionSplits(
+      body.commission_splits || body.referral_splits
+    );
+    const hasCommissionSplits = commissionSplits.length > 0;
+    const commissionSnapshot = body.commission_snapshot || {
+      session_id,
+      payment_ref,
+      stage,
+      paid_at,
+      splits: commissionSplits,
+    };
 
     const paymentWrite = await createOrUpdatePaymentIntent(env, {
       session_id,
@@ -715,6 +771,50 @@ async function handleNotify(req, env) {
       member_email,
       package_code,
     });
+
+    const eligibilityStatus =
+      stage === "final" || stage === "full" || stage === "membership"
+        ? "eligible"
+        : "pending_payment";
+
+    const commission_rows =
+      session_id && hasCommissionSplits
+        ? await ensureCommissionRowsForSession(env, {
+            session_id,
+            payment_ref,
+            commission_splits: commissionSplits,
+            model_id: toStr(body.model_id || body.model_record_id),
+            partner_snapshot: body.partner_snapshot || null,
+            referral_snapshot: body.referral_snapshot || null,
+            commission_snapshot: commissionSnapshot,
+            commission_group_key: body.commission_group_key || session_id,
+            commission_snapshot_locked: true,
+            actor: toStr(body.actor || "payments-worker"),
+            source: "payments.notify",
+          })
+        : { ok: true, skipped: true, reason: "no_commission_splits" };
+
+    const commission_snapshots =
+      session_id && (hasCommissionSplits || body.commission_snapshot)
+        ? await mirrorCommissionSnapshot(env, {
+            session_id,
+            partner_snapshot: body.partner_snapshot || null,
+            referral_snapshot: body.referral_snapshot || null,
+            commission_snapshot: commissionSnapshot,
+            commission_group_key: body.commission_group_key || session_id,
+            commission_snapshot_locked: true,
+          })
+        : { ok: true, skipped: true, reason: "no_commission_snapshot" };
+
+    const commission_eligibility = session_id
+      ? await updateCommissionEligibilityForSession(env, {
+          session_id,
+          payment_ref,
+          eligibility_status: eligibilityStatus,
+          actor: toStr(body.actor || "payments-worker"),
+          eligible_at: paid_at,
+        })
+      : { ok: true, skipped: true, reason: "missing_session_id" };
 
     try {
       await telegramSend(
@@ -761,6 +861,9 @@ async function handleNotify(req, env) {
         payment_write: paymentWrite,
         session_updated,
         points_ledger,
+        commission_rows,
+        commission_snapshots,
+        commission_eligibility,
       })
     );
   } catch (err) {
@@ -799,6 +902,10 @@ async function handleConfirmLink(req, env) {
     const payment_type = normalizeStage(body.payment_type || body.payment_stage || "full");
     const payment_method = toStr(body.payment_method || "promptpay");
     const note = toStr(body.note || body.notes);
+    const commissionSplits = normalizeCommissionSplits(
+      body.commission_splits || body.referral_splits
+    );
+    const hasCommissionSplits = commissionSplits.length > 0;
 
     const payment_ref = toStr(body.payment_ref || makePaymentRef("pay"));
     const created_at = nowIso();
@@ -835,8 +942,8 @@ async function handleConfirmLink(req, env) {
       session_id,
       payment_ref,
       payment_type,
-      payment_status: "pending",
-      status: "pending",
+      payment_status: "Pending",
+      status: "Pending",
       amount_thb,
       pay_model_thb,
       client_name,
@@ -850,6 +957,42 @@ async function handleConfirmLink(req, env) {
       note,
       created_at,
     });
+
+    const commissionSnapshot = hasCommissionSplits
+      ? body.commission_snapshot || {
+          session_id,
+          payment_ref,
+          created_at,
+          splits: commissionSplits,
+        }
+      : null;
+
+    const commission_rows = hasCommissionSplits
+      ? await ensureCommissionRowsForSession(env, {
+          session_id,
+          payment_ref,
+          commission_splits: commissionSplits,
+          model_id: toStr(body.model_id || body.model_record_id),
+          partner_snapshot: body.partner_snapshot || null,
+          referral_snapshot: body.referral_snapshot || null,
+          commission_snapshot: commissionSnapshot,
+          commission_group_key: body.commission_group_key || session_id,
+          commission_snapshot_locked: true,
+          actor: toStr(body.actor || "payments-worker"),
+          source: "payments.confirm_link",
+        })
+      : { ok: true, skipped: true, reason: "no_commission_splits" };
+
+    const commission_snapshots = hasCommissionSplits
+      ? await mirrorCommissionSnapshot(env, {
+          session_id,
+          partner_snapshot: body.partner_snapshot || null,
+          referral_snapshot: body.referral_snapshot || null,
+          commission_snapshot: commissionSnapshot,
+          commission_group_key: body.commission_group_key || session_id,
+          commission_snapshot_locked: true,
+        })
+      : { ok: true, skipped: true, reason: "no_commission_splits" };
 
     const payment_write = await createOrUpdatePaymentIntent(env, {
       session_id,
@@ -898,6 +1041,8 @@ async function handleConfirmLink(req, env) {
         model_confirmation_url,
         payment_write,
         session_write,
+        commission_rows,
+        commission_snapshots,
       })
     );
   } catch (err) {
@@ -1070,7 +1215,7 @@ export default {
       return handleVerify(req, env);
     }
 
-    if (method === "POST" && path === "/v1/payments/notify") {
+    if (method === "POST" && (path === "/v1/payments/notify" || path === "/v1/pay/notify")) {
       return handleNotify(req, env);
     }
 

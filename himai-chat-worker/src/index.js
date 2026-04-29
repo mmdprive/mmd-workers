@@ -1,3 +1,5 @@
+import { MODEL_MANIFEST } from "../../admin-worker/src/lib/model-manifest.generated.js";
+
 export default {
   async fetch(request, env, ctx) {
     try {
@@ -13,8 +15,13 @@ export default {
           line_oa_url: env.LINE_OA_URL || "https://line.me/R/ti/p/@himaishop",
           routes: [
             "GET /health",
+            "GET /shop",
+            "POST /shop",
             "POST /line/webhook",
             "POST /shop/signup",
+            "GET /mmd-shop",
+            "GET /mmd-shop/catalog",
+            "GET /api/mmd-shop/catalog",
             "POST /internal/airtable/send-report",
             "POST /internal/line/push"
           ]
@@ -25,8 +32,16 @@ export default {
         return handleLineWebhook(request, env);
       }
 
-      if (method === "POST" && path === "/shop/signup") {
+      if (method === "GET" && path === "/shop") {
+        return json(shopSurface(env));
+      }
+
+      if (method === "POST" && isShopSignupPath(path)) {
         return handleShopSignup(request, env);
+      }
+
+      if (method === "GET" && isMmdShopCatalogPath(path)) {
+        return handleShopCatalog(request);
       }
 
       if (method === "POST" && path === "/internal/airtable/send-report") {
@@ -64,6 +79,76 @@ function getConfig(env) {
     registerPrefix: env.REGISTER_PREFIX || "REGISTER HIMAI",
     suppliersTable: env.AIRTABLE_SUPPLIERS_TABLE || "Suppliers"
   };
+}
+
+function shopSurface(env) {
+  const cfg = getConfig(env);
+  return {
+    ok: true,
+    brand: "Himai Shop",
+    path: "/shop",
+    purpose: "shop_signup",
+    signup_endpoint: "POST /shop",
+    compatibility_signup_endpoint: "POST /shop/signup",
+    line_oa: cfg.lineOAHandle,
+    line_oa_url: cfg.lineOAUrl,
+    sibling_shop: {
+      brand: "MMD Shop",
+      path: "/mmd-shop",
+      catalog_endpoint: "GET /mmd-shop",
+      compatibility_catalog_endpoint: "GET /api/mmd-shop/catalog"
+    }
+  };
+}
+
+function isShopSignupPath(pathname) {
+  return pathname === "/shop" || pathname === "/shop/signup";
+}
+
+function isMmdShopCatalogPath(pathname) {
+  return (
+    pathname === "/mmd-shop" ||
+    pathname === "/mmd-shop/catalog" ||
+    pathname === "/api/mmd-shop/catalog"
+  );
+}
+
+function handleShopCatalog(request) {
+  const url = new URL(request.url);
+  const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
+  const limitParam = Number(url.searchParams.get("limit") || 100);
+  const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(200, limitParam)) : 100;
+
+  let items = MODEL_MANIFEST.filter((entry) => String(entry?.source || "") === "catalog").map((entry) => ({
+    model_id: entry.model_id || "",
+    working_name: entry.working_name || "",
+    nickname: entry.nickname || "",
+    folder_slug: entry.folder_slug || "",
+    username: entry.username || "",
+    vanity_slug: entry.vanity_slug || "",
+    source: entry.source || "catalog",
+    local_primary_collection: entry.local_primary_collection || "",
+    local_primary_path: entry.local_primary_path || "",
+  }));
+
+  if (q) {
+    items = items.filter((entry) =>
+      [entry.model_id, entry.working_name, entry.nickname, entry.folder_slug, entry.username, entry.vanity_slug]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q))
+    );
+  }
+
+  items.sort((a, b) => String(a.working_name).localeCompare(String(b.working_name)));
+  const sliced = items.slice(0, limit);
+
+  return json({
+    ok: true,
+    items: sliced,
+    total: items.length,
+    limit,
+    q: q || null,
+  });
 }
 
 /* =========================

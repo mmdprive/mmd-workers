@@ -5,7 +5,7 @@ compatibility_date = "2026-01-20"
 [vars]
 TELEGRAM_CHAT_ID = "-1003546439681"
 TG_THREAD_MEMBERSHIP = "20"
-TG_THREAD_CONFIRM = "21"
+TG_THREAD_CONFIRM = "61"
 TG_THREAD_POINTS = "17"
 MEMBERS_TABLE_ID = "tbl_cmjals5ud001e0svfhuamh6kn"
 PACKAGES_TABLE_ID = "tbl_cmjaltwge001q0tvdefxianf1"

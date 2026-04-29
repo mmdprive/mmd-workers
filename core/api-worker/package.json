@@ -1,0 +1,11 @@
+{
+  "name": "@mmd/api-worker",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Future public proxy layer for MMD / SIGIL workers",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  }
+}

@@ -16,25 +16,31 @@ export async function telegramNotify(payload, env) {
     return { ok: false, skipped: true, reason: "missing_telegram_env" };
   }
 
+  const directText = String(payload.text || "").trim();
   const threads = TG_THREADS(env);
   const flow = String(payload.flow || "").toLowerCase().trim();
-  const threadId = threads[flow] || 0;
-  if (!threadId) {
+  const explicitThreadId = int(payload.message_thread_id);
+  const threadId = explicitThreadId || threads[flow] || 0;
+  if (!directText && !threadId) {
     return { ok: false, error: "thread_lock_missing", detail: `missing thread for flow=${flow}` };
   }
 
-  const text = formatTelegramMessage(payload);
+  const text = directText || formatTelegramMessage(payload);
+  const chatId = String(payload.chat_id || env.TELEGRAM_CHAT_ID).trim();
+  const body = {
+    chat_id: chatId,
+    text,
+    parse_mode: payload.parse_mode || "HTML",
+    disable_web_page_preview: payload.disable_web_page_preview ?? true,
+  };
+  if (threadId) {
+    body.message_thread_id = threadId;
+  }
 
   const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: env.TELEGRAM_CHAT_ID,
-      message_thread_id: threadId,
-      text,
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-    }),
+    body: JSON.stringify(body),
   });
 
   const data = await res.json().catch(() => null);

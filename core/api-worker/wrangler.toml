@@ -1,0 +1,11 @@
+name = "api-worker"
+main = "src/index.js"
+compatibility_date = "2026-04-19"
+
+[vars]
+# Placeholder only. Do not wire production callers yet.
+ALLOWED_ORIGINS = ""
+ADMIN_WORKER_BASE_URL = ""
+CHAT_WORKER_BASE_URL = ""
+PAYMENTS_WORKER_BASE_URL = ""
+EVENTS_WORKER_BASE_URL = ""

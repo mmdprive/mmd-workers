@@ -1,3 +1,9 @@
+import {
+  ensureCommissionRowsForSession,
+  mirrorCommissionSnapshot,
+  normalizeCommissionSplits,
+} from "../../shared/src/lib/partner-commissions/index.js";
+
 /* =========================================================
    MMD Privé — Events Worker (Airtable Jobs + Dispatch Flow)
    Merge: GitHub current (job create/get/event + realtime open)
@@ -318,6 +324,16 @@ export default {
 
         const job_id = body.job_id ? str(body.job_id) : makeJobId(cid);
         const created_at = nowIso();
+        const commissionSplits = normalizeCommissionSplits(
+          body.commission_splits || body.referral_splits
+        );
+        const hasCommissionSplits = commissionSplits.length > 0;
+        const commissionSnapshot = body.commission_snapshot || {
+          session_id,
+          job_id,
+          created_at,
+          splits: commissionSplits,
+        };
 
         const fields = {
           job_id,
@@ -336,6 +352,12 @@ export default {
           status: str(body.status) || "confirmed",
           last_update_at: created_at,
           events_json: JSON.stringify([{ ts: created_at, event: "created", by: "admin", note: "job created" }]),
+          partner_snapshot_json: body.partner_snapshot ? JSON.stringify(body.partner_snapshot) : undefined,
+          referral_snapshot_json: body.referral_snapshot ? JSON.stringify(body.referral_snapshot) : undefined,
+          commission_snapshot_json: hasCommissionSplits ? JSON.stringify(commissionSnapshot) : undefined,
+          commission_snapshot_locked:
+            hasCommissionSplits || body.commission_snapshot_locked ? true : undefined,
+          commission_group_key: str(body.commission_group_key || session_id) || undefined,
         };
 
         const created = await atFetch(env, "", {
@@ -343,7 +365,46 @@ export default {
           body: JSON.stringify({ records: [{ fields }] }),
         });
 
-        return json({ ok:true, job_id, airtable: created.records?.[0]?.id || null }, 200, corsHeaders(cors));
+        const snapshots = hasCommissionSplits
+          ? await mirrorCommissionSnapshot(env, {
+              session_id,
+              job_id,
+              partner_snapshot: body.partner_snapshot || null,
+              referral_snapshot: body.referral_snapshot || null,
+              commission_snapshot: commissionSnapshot,
+              commission_group_key: body.commission_group_key || session_id,
+              commission_snapshot_locked: true,
+            })
+          : { ok: true, skipped: true, reason: "no_commission_splits" };
+
+        const commissions = hasCommissionSplits
+          ? await ensureCommissionRowsForSession(env, {
+              session_id,
+              job_id,
+              payment_ref: str(body.payment_ref),
+              model_id: str(body.model_id || body.model_record_id || body.model_code),
+              commission_splits: commissionSplits,
+              partner_snapshot: body.partner_snapshot || null,
+              referral_snapshot: body.referral_snapshot || null,
+              commission_snapshot: commissionSnapshot,
+              commission_group_key: body.commission_group_key || session_id,
+              commission_snapshot_locked: true,
+              actor: str(body.actor || "events-worker"),
+              source: "events.job.create",
+            })
+          : { ok: true, skipped: true, reason: "no_commission_splits" };
+
+        return json(
+          {
+            ok:true,
+            job_id,
+            airtable: created.records?.[0]?.id || null,
+            snapshots,
+            commissions,
+          },
+          200,
+          corsHeaders(cors)
+        );
       }
 
 
@@ -697,5 +758,3 @@ async function airtableSumPaidForStage(sessionId, stage, env) {
   }
   return sum;
 }
-
->>>>>>> main

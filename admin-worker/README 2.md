@@ -35,6 +35,23 @@ Set these in `wrangler.toml` or dashboard:
 - `AIRTABLE_BASE_ID`
 - `AIRTABLE_TABLE_MODELS`
 
+## Phase 1B Create Job
+
+`POST /v1/admin/jobs/create-job` and `POST /internal/admin/jobs/create-job`
+orchestrate the LINE Inbox create-job path:
+
+1. Normalize LINE Inbox payload.
+2. Build public/private job metadata.
+3. Create the canonical session through the existing create-session flow.
+4. Return customer/model confirmation links containing `?t=`.
+5. Return LINE copy text and optionally push LINE when `push_line=true` and LINE push env is configured.
+6. Notify `telegram-worker` through internal send only.
+
+Optional LINE push configuration:
+
+- `LINE_PUSH_URL` / `LINE_INTERNAL_PUSH_URL` for an internal push service
+- or `LINE_CHANNEL_ACCESS_TOKEN` as a Worker secret for direct LINE push
+
 ## Example
 
 ```bash

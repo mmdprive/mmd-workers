@@ -1,6 +1,6 @@
 import { str } from "./util.js";
 
-const DT_BASE = "https://api.memberstack.com";
+const DT_BASE = "https://admin.memberstack.com";
 
 export function membersTableId(env) {
   return str(env.MEMBERS_TABLE_ID || "tbl_cmjals5ud001e0svfhuamh6kn");
@@ -31,6 +31,39 @@ export async function dtFetch(env, path, { method = "GET", body } = {}) {
   return data;
 }
 
+function memberPayload(data) {
+  const input = data && typeof data === "object" ? data : {};
+  const email = str(input.email).toLowerCase();
+  const password = str(input.password);
+  const customFields = {
+    ...(input.customFields && typeof input.customFields === "object" ? input.customFields : {}),
+  };
+
+  for (const [key, value] of Object.entries(input)) {
+    if (["email", "password", "plans", "customFields", "metaData", "json", "loginRedirect"].includes(key)) continue;
+    if (value == null) continue;
+    if (typeof value === "string" && !value.trim()) continue;
+    customFields[key] = value;
+  }
+
+  return {
+    email,
+    ...(password ? { password } : {}),
+    ...(Array.isArray(input.plans) && input.plans.length ? { plans: input.plans } : {}),
+    ...(Object.keys(customFields).length ? { customFields } : {}),
+    ...(input.metaData && typeof input.metaData === "object" ? { metaData: input.metaData } : {}),
+    ...(input.json && typeof input.json === "object" ? { json: input.json } : {}),
+    ...(str(input.loginRedirect) ? { loginRedirect: str(input.loginRedirect) } : {}),
+  };
+}
+
+function memberResult(out) {
+  if (out && typeof out === "object" && "data" in out) {
+    return out.data || null;
+  }
+  return out?.member || out || null;
+}
+
 export async function dtQuery(env, tableId, findMany) {
   return dtFetch(env, "/v1/data-records/query", {
     method: "POST",
@@ -39,34 +72,39 @@ export async function dtQuery(env, tableId, findMany) {
 }
 
 export async function dtGetRecordById(recordId, env) {
-  const out = await dtFetch(env, `/v1/data-records/${encodeURIComponent(recordId)}`, { method: "GET" });
-  return out?.data?.record || out?.data || out;
+  const out = await dtFetch(env, `/members/${encodeURIComponent(recordId)}`, { method: "GET" });
+  return memberResult(out);
 }
 
 export async function dtCreateRecord(env, tableId, data) {
-  const out = await dtFetch(env, "/v1/data-records", {
+  void tableId;
+  const out = await dtFetch(env, "/members", {
     method: "POST",
-    body: { table: tableId, data },
+    body: memberPayload(data),
   });
-  return out?.data?.record || out?.data || out;
+  return memberResult(out);
 }
 
 export async function dtUpdateRecord(recordId, data, env) {
-  const out = await dtFetch(env, `/v1/data-records/${encodeURIComponent(recordId)}`, {
-    method: "PUT",
-    body: { data },
+  const out = await dtFetch(env, `/members/${encodeURIComponent(recordId)}`, {
+    method: "PATCH",
+    body: memberPayload(data),
   });
-  return out?.data?.record || out?.data || out;
+  return memberResult(out);
 }
 
 export async function dtFindMember({ email, memberstack_id }, env) {
-  const table = membersTableId(env);
-  const where = email
-    ? { email: { equals: email } }
-    : { memberstack_id: { equals: memberstack_id } };
+  const key = str(memberstack_id || email).toLowerCase();
+  if (!key) return null;
 
-  const out = await dtQuery(env, table, { where, take: 1 });
-  return out?.data?.records?.[0] || null;
+  try {
+    const out = await dtFetch(env, `/members/${encodeURIComponent(key)}`, { method: "GET" });
+    return memberResult(out);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    if (message.includes("memberstack_dt_error_404")) return null;
+    throw error;
+  }
 }
 
 export async function dtFindPackageByCodeOrTier(codeOrTier, env) {

@@ -1,13 +1,30 @@
-name = "chat-worker-ai-integration"
-main = "src/index.ts"
+name = "chat-worker"
+main = "src/index.js"
 compatibility_date = "2026-03-19"
 
 [vars]
-AI_WORKER_BASE_URL = "https://ai-worker.mmdbkk.com"
-ADMIN_WORKER_BASE_URL = "https://admin-worker.mmdbkk.com"
+AI_WORKER_BASE_URL = "https://ai-worker.malemodel-bkk.workers.dev"
+ADMIN_WORKER_BASE_URL = "https://admin-worker.malemodel-bkk.workers.dev"
+ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io,http://localhost:3000,http://127.0.0.1:3000"
+AI_PROVIDER = "openai"
+OPENAI_MODEL = "gpt-4.1-mini"
+TELEGRAM_RATE_LIMIT_PER_MINUTE = "18"
+ALLOW_TELEGRAM_GROUP_CHAT = "false"
+TELEGRAM_CHAT_ID = "-1003546439681"
+TG_THREAD_CONFIRM = "61"
+
+[[kv_namespaces]]
+binding = "CHAT_SESSIONS_KV"
+id = "9205f32e2bda4c9eb830a72566b3a0d9"
+preview_id = "431e456f975a422da772a6b5939eb5d8"
 
 # Set via secrets:
 # wrangler secret put INTERNAL_TOKEN
+# wrangler secret put OPENAI_API_KEY
 # wrangler secret put TELEGRAM_BOT_TOKEN
+# wrangler secret put TELEGRAM_WEBHOOK_SECRET
+# Existing production aliases also supported:
+# CHAT_BOT_TOKEN
+# WEBHOOK_SECRET
 # wrangler secret put TELEGRAM_CHAT_ID
 # wrangler secret put TG_THREAD_CONFIRM

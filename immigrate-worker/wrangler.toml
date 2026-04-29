@@ -8,13 +8,19 @@ AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
 AIRTABLE_TABLE_LINE_INBOX = "Line Inbox"
 AIRTABLE_TABLE_CLIENTS = "Clients"
 AIRTABLE_TABLE_SESSIONS = "tblC98mKWbzmPuNzX"
+AIRTABLE_TABLE_PRIVATE_PROFILE_NOTES = "tbl1Tt1IXDc9k0zxK"
+AIRTABLE_TABLE_MODELS = "tblI4B0bI446vp9GX"
 ENABLE_AIRTABLE_SYNC = "true"
 JOBS_WORKER_BASE_URL = ""
 CREATE_LINKS_URL = "https://payments-worker.malemodel-bkk.workers.dev/v1/confirm/link"
 REALTIME_SESSIONS_URL = ""
-PUBLIC_WEB_BASE_URL = "https://www.mmdbkk.com"
-PUBLIC_ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
+PUBLIC_WEB_BASE_URL = "https://sigil.mmdbkk.com"
+PUBLIC_ALLOWED_ORIGINS = "https://sigil.mmdbkk.com,https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
 ADMIN_WORKER_BASE_URL = "https://admin-worker.malemodel-bkk.workers.dev"
+
+[[services]]
+binding = "ADMIN_WORKER"
+service = "admin-worker"
 
 # Set via secrets:
 # wrangler secret put INTERNAL_TOKEN
@@ -36,11 +42,47 @@ pattern = "www.mmdbkk.com/internal/jobs*"
 zone_name = "mmdbkk.com"
 
 [[routes]]
-pattern = "mmdbkk.com/internal/admin/jobs*"
+pattern = "mmdbkk.com/internal/admin/login*"
 zone_name = "mmdbkk.com"
 
 [[routes]]
-pattern = "www.mmdbkk.com/internal/admin/jobs*"
+pattern = "www.mmdbkk.com/internal/admin/login*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/internal/admin/verify-access-code*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/admin/verify-access-code*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/internal/admin/control-room*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/internal/admin/control-room*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/sigil/admin*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/sigil/admin*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "mmdbkk.com/sigil/api*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "www.mmdbkk.com/sigil/api*"
+zone_name = "mmdbkk.com"
+
+[[routes]]
+pattern = "sigil.mmdbkk.com/*"
 zone_name = "mmdbkk.com"
 
 [[routes]]

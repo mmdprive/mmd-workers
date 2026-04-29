@@ -1,6 +1,6 @@
 ## Spec Alignment
-- [ ] Updated `/openapi/mmd-core-api.v1.yaml` if needed
-- [ ] Updated `/spec/openapi.payments.v2.yaml` if needed
+- [ ] Updated `/openapi/core-api/mmd-core-api.v1.yaml` if needed
+- [ ] Updated `/openapi/payments/openapi.payments.v2.yaml` if needed
 - [ ] Endpoint semantics aligned (`/v1/pay/create` vs `/v1/pay/verify`)
 - [ ] `payment_ref` used canonically
 - [ ] `amount_thb` used canonically

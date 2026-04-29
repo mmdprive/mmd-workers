@@ -11,6 +11,7 @@
 //   POST /v1/admin/telegram/dm
 //   GET  /v1/admin/models/list
 //   POST /v1/admin/models/upsert
+//   POST /v1/admin/jobs/create-job
 //
 // + Airtable Writer (STRICT confirm-key only):
 //   POST /v1/admin/console/inbox      -> writes MMD — Console Inbox (tblFHmfpB2TTrzO2e)
@@ -125,6 +126,27 @@ export default {
       const body = await safeJson(req);
       try {
         const out = await createAdminSession(env, body || {});
+        return withCors(req, env, json({ ok: true, ...out }));
+      } catch (error) {
+        return withCors(
+          req,
+          env,
+          json({ ok: false, error: String(error?.message || error) }, 400)
+        );
+      }
+    }
+
+    if (method === "POST" && path === "/internal/admin/jobs/create-job") {
+      if (!isAllowedOrigin(req, env)) {
+        return withCors(req, env, json({ ok: false, error: "origin_not_allowed" }, 403));
+      }
+      if (!isAuthed(req, env)) {
+        return withCors(req, env, json({ ok: false, error: "unauthorized" }, 401));
+      }
+
+      const body = await safeJson(req);
+      try {
+        const out = await createAdminJob(env, body || {}, req);
         return withCors(req, env, json({ ok: true, ...out }));
       } catch (error) {
         return withCors(
@@ -485,6 +507,21 @@ export default {
         const body = await safeJson(req);
         try {
           const out = await createAdminSession(env, body || {});
+          return withCors(req, env, json({ ok: true, ...out }));
+        } catch (error) {
+          return withCors(
+            req,
+            env,
+            json({ ok: false, error: String(error?.message || error) }, 400)
+          );
+        }
+      }
+
+      // POST /v1/admin/jobs/create-job
+      if (method === "POST" && (path === "/v1/admin/jobs/create-job" || path === "/v1/admin/create-job")) {
+        const body = await safeJson(req);
+        try {
+          const out = await createAdminJob(env, body || {}, req);
           return withCors(req, env, json({ ok: true, ...out }));
         } catch (error) {
           return withCors(
@@ -2167,6 +2204,307 @@ async function createAdminSession(env, body) {
     short_url: confirmData.short_url || null,
     payments_response: confirmData,
   };
+}
+
+async function createAdminJob(env, body, req) {
+  const job = normalizeCreateJobPayload(body);
+  const session = await createAdminSession(env, job.session_payload);
+  const links = buildCreateJobLinks(env, job, session);
+  const line = buildLineJobDelivery(job, links);
+  const linePush = await maybePushLineJob(env, job, line);
+  const lineInbox = await maybePatchLineInboxForJob(env, job, session, links, linePush);
+  const telegramGate = await notifyTelegramCreateJobGate(env, job, session, links, line, linePush, req);
+
+  return {
+    contract_version: "create_job_v1b",
+    source: "line_inbox",
+    telegram_gate: telegramGate,
+    job: {
+      job_id: job.job_id,
+      visibility: job.visibility,
+      public_job: job.visibility === "public",
+      private_job: job.visibility === "private",
+      status: "session_created",
+      client_name: job.client_name,
+      model_name: job.model_name,
+      job_type: job.job_type,
+      job_date: job.job_date,
+      start_time: job.start_time,
+      end_time: job.end_time,
+      location_name: job.location_name,
+    },
+    session: {
+      session_id: session.session_id,
+      payment_ref: session.payment_ref,
+      amount_thb: session.amount_thb,
+      pay_model_thb: session.pay_model_thb,
+      created: true,
+      source_response_mode: session.mode,
+    },
+    links,
+    line: {
+      copy_text: line.copy_text,
+      push: linePush,
+      line_user_id: job.line_user_id,
+    },
+    airtable: {
+      line_inbox: lineInbox,
+    },
+    payments_response: session.payments_response,
+  };
+}
+
+function normalizeCreateJobPayload(body) {
+  const metadata = readObject(body.metadata);
+  const payloadJson = readObject(body.payload_json);
+  const identity = readObject(body.identity);
+  const notes = readObject(body.notes);
+
+  const clientName =
+    str(body.client_name || body.member_name || body.customer_name || body.display_name || body.line_display_name || identity.display_name || identity.full_name) ||
+    str(body.email || body.member_email || identity.email) ||
+    str(body.line_user_id || identity.line_user_id);
+  const modelName = str(body.model_name || body.talent_name || payloadJson.model_name);
+  const jobType = str(body.job_type || body.session_type || payloadJson.job_type || "booking");
+  const jobDate = str(body.job_date || body.service_date || body.date || payloadJson.job_date);
+  const startTime = str(body.start_time || body.time_start || payloadJson.start_time);
+  const endTime = str(body.end_time || body.time_end || payloadJson.end_time);
+  const locationName = str(body.location_name || body.location || body.venue_name || payloadJson.location_name);
+  const amount = toNum(body.amount_thb ?? body.amount ?? payloadJson.amount_thb);
+  const payModelAmount = toNum(body.pay_model_thb ?? body.pay_model ?? body.model_pay_thb ?? payloadJson.pay_model_thb);
+  const lineInboxRecordId = str(body.line_inbox_record_id || body.inbox_record_id || body.line_inbox_id || metadata.line_inbox_record_id);
+  const lineUserId = str(body.line_user_id || identity.line_user_id || metadata.line_user_id);
+  const visibility = normalizeJobVisibility(body.job_visibility || body.visibility || body.job_privacy || payloadJson.job_visibility);
+  const sessionId = str(body.session_id || body.sessionId || metadata.session_id);
+  const paymentRef = str(body.payment_ref || body.paymentRef || metadata.payment_ref);
+  const jobId = str(body.job_id || body.jobId || metadata.job_id) || sessionId || `job_${crypto.randomUUID()}`;
+
+  const sessionPayload = {
+    ...body,
+    session_id: sessionId || undefined,
+    payment_ref: paymentRef || undefined,
+    client_name: clientName,
+    model_name: modelName,
+    memberstack_id: str(body.memberstack_id || body.member_id || body.member_ref || identity.member_id),
+    model_id: str(body.model_id || body.model_ref || body.model_record_id || payloadJson.model_record_id),
+    job_type: jobType,
+    job_date: jobDate,
+    start_time: startTime,
+    end_time: endTime,
+    location_name: locationName,
+    google_map_url: str(body.google_map_url || body.google_maps_url || body.maps_url || payloadJson.google_map_url),
+    note: str(body.note || body.booking_note || body.manual_note || notes.manual_note || payloadJson.booking_note),
+    amount_thb: amount,
+    pay_model_thb: payModelAmount,
+    currency: str(body.currency || "THB"),
+    payment_type: str(body.payment_type || body.payment_stage || payloadJson.payment_type || "deposit"),
+    payment_method: str(body.payment_method || payloadJson.payment_method || "promptpay"),
+    metadata: {
+      ...metadata,
+      source: str(metadata.source || body.source || "line_inbox"),
+      line_user_id: lineUserId,
+      line_inbox_record_id: lineInboxRecordId,
+      job_visibility: visibility,
+      job_id: jobId,
+    },
+  };
+
+  return {
+    raw: body,
+    metadata,
+    payload_json: payloadJson,
+    job_id: jobId,
+    visibility,
+    client_name: clientName,
+    model_name: modelName,
+    job_type: jobType,
+    job_date: jobDate,
+    start_time: startTime,
+    end_time: endTime,
+    location_name: locationName,
+    line_user_id: lineUserId,
+    line_inbox_record_id: lineInboxRecordId,
+    line_language: normalizeLineLanguage(body.line_language || body.language || metadata.language),
+    push_line: body.push_line === true || str(body.delivery_mode || body.line_delivery_mode).toLowerCase() === "push",
+    telegram_chat_id: str(body.telegram_chat_id || metadata.telegram_chat_id),
+    telegram_message_thread_id: str(body.telegram_message_thread_id || metadata.telegram_message_thread_id || body.thread_id),
+    actor: str(body.actor || body.created_by || metadata.actor || "admin-worker"),
+    session_payload: sessionPayload,
+  };
+}
+
+function normalizeJobVisibility(value) {
+  const raw = str(value).toLowerCase();
+  if (["public", "pub"].includes(raw)) return "public";
+  return "private";
+}
+
+function normalizeLineLanguage(value) {
+  const raw = str(value).toLowerCase();
+  if (raw === "en" || raw === "english") return "en";
+  return "th";
+}
+
+function buildCreateJobLinks(env, job, session) {
+  const base = getWebBaseUrl(env);
+  const customerConfirmationUrl = str(session.customer_confirmation_url || session.confirmation_url || session.confirm_url);
+  const modelConfirmationUrl = str(session.model_confirmation_url);
+  const privateJobUrl = str(job.raw.private_job_url || job.raw.private_url) || customerConfirmationUrl;
+  const publicJobUrl =
+    str(job.raw.public_job_url || job.raw.public_url) ||
+    (job.visibility === "public"
+      ? buildAbsoluteUrl(`/jobs/${encodeURIComponent(slugToken(job.job_id, "job"))}`, base)
+      : "");
+
+  return {
+    customer_confirmation_url: customerConfirmationUrl,
+    model_confirmation_url: modelConfirmationUrl,
+    confirmation_url: customerConfirmationUrl,
+    public_job_url: publicJobUrl,
+    private_job_url: privateJobUrl,
+    has_customer_token: customerConfirmationUrl.includes("?t="),
+    has_model_token: modelConfirmationUrl.includes("?t="),
+  };
+}
+
+function buildLineJobDelivery(job, links) {
+  const url = links.customer_confirmation_url || links.private_job_url || links.public_job_url;
+  const isEnglish = job.line_language === "en";
+  const details = [
+    job.model_name ? (isEnglish ? `Model: ${job.model_name}` : `นายแบบ: ${job.model_name}`) : "",
+    job.job_date ? (isEnglish ? `Date: ${job.job_date}` : `วันที่: ${job.job_date}`) : "",
+    job.start_time || job.end_time
+      ? (isEnglish ? `Time: ${[job.start_time, job.end_time].filter(Boolean).join(" - ")}` : `เวลา: ${[job.start_time, job.end_time].filter(Boolean).join(" - ")}`)
+      : "",
+    job.location_name ? (isEnglish ? `Location: ${job.location_name}` : `สถานที่: ${job.location_name}`) : "",
+  ].filter(Boolean);
+
+  const lines = isEnglish
+    ? [
+        "Your MMD booking link is ready.",
+        ...details,
+        "",
+        url ? `Please confirm here: ${url}` : "",
+        "If anything needs to be adjusted, reply here and we will assist discreetly.",
+      ]
+    : [
+        "ลิงก์คอนเฟิร์มงาน MMD พร้อมแล้วค่ะ",
+        ...details,
+        "",
+        url ? `กรุณาคอนเฟิร์มที่ลิงก์นี้: ${url}` : "",
+        "หากต้องการปรับรายละเอียด ตอบกลับใน LINE นี้ได้เลยค่ะ",
+      ];
+
+  return {
+    copy_text: lines.filter(Boolean).join("\n"),
+  };
+}
+
+async function maybePushLineJob(env, job, line) {
+  if (!job.push_line) return { attempted: false, ok: false, mode: "copy_only", reason: "push_not_requested" };
+  if (!job.line_user_id) return { attempted: false, ok: false, mode: "copy_only", reason: "missing_line_user_id" };
+
+  const linePushUrl = str(env.LINE_PUSH_URL || env.LINE_INTERNAL_PUSH_URL);
+  if (linePushUrl) {
+    const res = await fetch(linePushUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(env.INTERNAL_TOKEN ? { "X-Internal-Token": env.INTERNAL_TOKEN } : {}),
+      },
+      body: JSON.stringify({
+        line_user_id: job.line_user_id,
+        to: job.line_user_id,
+        text: line.copy_text,
+        messages: [{ type: "text", text: line.copy_text }],
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    return { attempted: true, ok: res.ok, mode: "internal_line_push", status: res.status, data };
+  }
+
+  if (env.LINE_CHANNEL_ACCESS_TOKEN) {
+    const res = await fetch("https://api.line.me/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.LINE_CHANNEL_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        to: job.line_user_id,
+        messages: [{ type: "text", text: line.copy_text }],
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    return { attempted: true, ok: res.ok, mode: "line_api", status: res.status, data };
+  }
+
+  return { attempted: false, ok: false, mode: "copy_only", reason: "missing_line_push_env" };
+}
+
+async function maybePatchLineInboxForJob(env, job, session, links, linePush) {
+  if (!job.line_inbox_record_id) {
+    return { attempted: false, ok: false, reason: "missing_line_inbox_record_id" };
+  }
+  if (job.raw.update_line_inbox === false) {
+    return { attempted: false, ok: false, reason: "disabled_by_payload" };
+  }
+
+  const table = env.AIRTABLE_TABLE_LINE_INBOX || "Line Inbox";
+  const fields = compactObject({
+    status: str(job.raw.line_inbox_status || "job_created"),
+    job_status: "session_created",
+    session_id: session.session_id,
+    payment_ref: session.payment_ref,
+    customer_confirmation_url: links.customer_confirmation_url,
+    model_confirmation_url: links.model_confirmation_url,
+    line_delivery_mode: linePush?.mode || "copy_only",
+    line_delivery_status: linePush?.ok ? "pushed" : "copy_ready",
+  });
+
+  try {
+    return await airtablePatchById(env, table, job.line_inbox_record_id, fields);
+  } catch (error) {
+    return {
+      attempted: true,
+      ok: false,
+      error: String(error?.message || error),
+    };
+  }
+}
+
+async function notifyTelegramCreateJobGate(env, job, session, links, line, linePush, req) {
+  const notify = job.raw.notify_telegram !== false && str(job.raw.notify_telegram).toLowerCase() !== "false";
+  if (!notify) return { attempted: false, ok: false, reason: "disabled_by_payload" };
+
+  const lines = [
+    "<b>CREATE JOB GATE</b>",
+    `Visibility: <b>${escapeHtml(job.visibility)}</b>`,
+    `Session: <code>${escapeHtml(session.session_id)}</code>`,
+    `Payment: <code>${escapeHtml(session.payment_ref)}</code>`,
+    `Client: <b>${escapeHtml(job.client_name)}</b>`,
+    `Model: <b>${escapeHtml(job.model_name)}</b>`,
+    `Date: <b>${escapeHtml(job.job_date)}</b>`,
+    `Time: <b>${escapeHtml([job.start_time, job.end_time].filter(Boolean).join(" - "))}</b>`,
+    `Location: ${escapeHtml(job.location_name)}`,
+    `Amount: <b>${escapeHtml(String(session.amount_thb))} THB</b>`,
+    "",
+    `Client link: ${escapeHtml(links.customer_confirmation_url)}`,
+    links.model_confirmation_url ? `Model link: ${escapeHtml(links.model_confirmation_url)}` : "",
+    "",
+    `LINE: <b>${escapeHtml(linePush?.ok ? "pushed" : "copy_ready")}</b>`,
+    job.line_user_id ? `LINE User: <code>${escapeHtml(job.line_user_id)}</code>` : "",
+    job.line_inbox_record_id ? `Inbox: <code>${escapeHtml(job.line_inbox_record_id)}</code>` : "",
+    req ? `Actor: <code>${escapeHtml(job.actor)}</code>` : "",
+  ].filter(Boolean);
+
+  return await telegramInternalSend(env, {
+    chat_id: job.telegram_chat_id,
+    message_thread_id: job.telegram_message_thread_id || env.TG_THREAD_CONFIRM || "61",
+    text: lines.join("\n"),
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  });
 }
 
 async function callPaymentsCreateLink(env, payload) {

@@ -10,7 +10,10 @@ export interface Env {
   AIRTABLE_TABLE_CLIENTS?: string;
   AIRTABLE_TABLE_SESSIONS?: string;
   AIRTABLE_TABLE_PAYMENTS?: string;
+  AIRTABLE_TABLE_PRIVATE_PROFILE_NOTES?: string;
+  AIRTABLE_TABLE_MODELS?: string;
   AIRTABLE_TABLE_POINTS_LEDGER?: string;
+  AIRTABLE_TABLE_IMPORT_LOGS?: string;
   ENABLE_AIRTABLE_SYNC?: string;
   JOBS_WORKER_BASE_URL?: string;
   CREATE_LINKS_URL?: string;
@@ -315,6 +318,23 @@ export interface LineClientIntakeResponse {
 
 export interface CreateJobRequest extends LineClientIntakeRequest {
   manual_note_raw?: string;
+  session_id?: string;
+  payment_ref?: string;
+  job_type?: string;
+  job_date?: string;
+  start_time?: string;
+  end_time?: string;
+  location_name?: string;
+  google_map_url?: string;
+  amount_thb?: number;
+  pay_model_thb?: number;
+  payment_type?: string;
+  payment_method?: string;
+  booking_note?: string;
+  model_history_note?: string;
+  model_history_source?: string;
+  model_history_status?: "pending_import" | "attached" | "imported";
+  model_history_payload_json?: Record<string, unknown>;
 }
 
 export interface CreateJobResponse {
@@ -354,12 +374,31 @@ export interface CreateJobResponse {
       client_record_id: string | null;
       inbox_record_id: string | null;
     };
+    confirm_links: {
+      attempted: boolean;
+      ok: boolean;
+      session_id?: string;
+      payment_ref?: string;
+      customer_confirmation_url?: string;
+      model_confirmation_url?: string;
+      error?: string;
+    } | null;
+    model_history: {
+      status: "missing" | "pending_import" | "attached" | "imported";
+      source: string;
+      note: string;
+      has_payload: boolean;
+    };
     artifacts: {
       member_id: string;
       customer_url: string;
       model_url: string;
       customer_dashboard_url: string;
       model_dashboard_url: string;
+      customer_confirmation_url?: string;
+      model_confirmation_url?: string;
+      model_history_status: "missing" | "pending_import" | "attached" | "imported";
+      model_history_source: string;
       airtable: {
         client_record_id: string | null;
         inbox_record_id: string | null;
