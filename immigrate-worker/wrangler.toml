@@ -29,9 +29,10 @@ ADMIN_WORKER_BASE_URL = "https://admin-worker.malemodel-bkk.workers.dev"
 # - set JOBS_WORKER_BASE_URL to your jobs-worker origin
 # - set ADMIN_WORKER_BASE_URL to your admin-worker origin for canonical member promotion
 
-# Example route bindings for a domain you control:
+# SIGIL subdomain is Worker-owned. Route the whole host to avoid Cloudflare 522
+# fallback to a proxied CNAME origin when a path is not covered by a narrow route.
 [[routes]]
-pattern = "sigil.mmdbkk.com/a/*"
+pattern = "sigil.mmdbkk.com/*"
 zone_name = "mmdbkk.com"
 
 [[routes]]
