@@ -172,6 +172,15 @@
         </div>
         <i></i>
       </article>
+
+      <article class="mmdops__systemCard" data-worker-card="realtime">
+        <div>
+          <small>REALTIME</small>
+          <strong data-worker-label="realtime">Checking</strong>
+          <p>live rooms · operator updates</p>
+        </div>
+        <i></i>
+      </article>
     </section>
 
     <section class="mmdops__board">
@@ -225,10 +234,12 @@
         <div class="mmdops__endpointList">
           <div><span>GET</span><code>/v1/admin/auth/me</code></div>
           <div><span>GET</span><code>/v1/admin/ping</code></div>
-          <div><span>GET</span><code>/v1/admin/line/inbox</code></div>
+          <div><span>POST</span><code>/v1/admin/clients/lineage-lookup</code></div>
+          <div><span>GET</span><code>/v1/admin/clients/recent</code></div>
           <div><span>GET</span><code>/v1/admin/models/search?q=</code></div>
           <div><span>GET</span><code>/v1/admin/models/:id/folder</code></div>
           <div><span>POST</span><code>/v1/admin/job/create</code></div>
+          <div><span>POST</span><code>/v1/admin/line/push</code></div>
         </div>
       </article>
 

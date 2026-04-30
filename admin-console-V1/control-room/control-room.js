@@ -26,7 +26,8 @@
     chat: root.querySelector('[data-worker-card="chat"]'),
     payments: root.querySelector('[data-worker-card="payments"]'),
     events: root.querySelector('[data-worker-card="events"]'),
-    telegram: root.querySelector('[data-worker-card="telegram"]')
+    telegram: root.querySelector('[data-worker-card="telegram"]'),
+    realtime: root.querySelector('[data-worker-card="realtime"]')
   };
 
   const workerLabels = {
@@ -35,11 +36,32 @@
     chat: root.querySelector('[data-worker-label="chat"]'),
     payments: root.querySelector('[data-worker-label="payments"]'),
     events: root.querySelector('[data-worker-label="events"]'),
-    telegram: root.querySelector('[data-worker-label="telegram"]')
+    telegram: root.querySelector('[data-worker-label="telegram"]'),
+    realtime: root.querySelector('[data-worker-label="realtime"]')
   };
+
+  const ADMIN_GATE_SESSION_KEY = "mmd_admin_gate_v1";
 
   function cleanBase(value) {
     return String(value || "").trim().replace(/\/+$/, "");
+  }
+
+  function readAdminGate() {
+    try {
+      const raw = sessionStorage.getItem(ADMIN_GATE_SESSION_KEY);
+      const gate = raw ? JSON.parse(raw) : null;
+      return gate && gate.ok ? gate : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function adminHeaders() {
+    const gate = readAdminGate();
+    const headers = { "Accept": "application/json" };
+    if (gate.bearer) headers.Authorization = "Bearer " + gate.bearer;
+    if (gate.confirmKey) headers["X-Confirm-Key"] = gate.confirmKey;
+    return headers;
   }
 
   function nowTime() {
@@ -92,12 +114,18 @@
   }
 
   async function readEndpoint(url, options) {
+    const opts = options || {};
+    const headers = {
+      "Accept": "application/json",
+      ...(opts.headers || {})
+    };
+
     const res = await fetch(url, {
       method: "GET",
-      credentials: "include",
+      credentials: opts.credentials || "omit",
       cache: "no-store",
-      headers: { "Accept": "application/json" },
-      ...options
+      ...opts,
+      headers
     });
 
     const text = await res.text();
@@ -174,7 +202,10 @@
       "/v1/admin/ping",
       "/health",
       "/"
-    ]);
+    ], {
+      credentials: "include",
+      headers: adminHeaders()
+    });
 
     if (result.ok && result.authRequired) {
       setAdminMessage("เชื่อมต่อ admin-worker ได้แล้ว แต่ session นี้ยังไม่ได้รับสิทธิ์ กรุณาเข้า Login Gate ก่อน.");
@@ -200,7 +231,8 @@
       checkWithFallback("chat", config.chatBase, ["/health", "/"]),
       checkWithFallback("payments", config.paymentsBase, ["/health", "/v1/pay/health", "/"]),
       checkWithFallback("events", config.eventsBase, ["/health", "/v1/events/health", "/"]),
-      checkWithFallback("telegram", config.telegramBase, ["/health", "/telegram/health", "/"])
+      checkWithFallback("telegram", config.telegramBase, ["/health", "/telegram/health", "/"]),
+      checkWithFallback("realtime", config.realtimeBase, ["/health", "/"])
     ]);
 
     const hardFailures = checks.filter(item => !item.ok && item.name !== "events");

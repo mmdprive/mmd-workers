@@ -4,6 +4,7 @@
   const root = document.querySelector("[data-mmd-create-session-pro]");
   if (!root) return;
 
+  const ADMIN_GATE_SESSION_KEY = "mmd_admin_gate_v1";
   const qs = new URLSearchParams(window.location.search);
   const userConfig = window.MMD_CREATE_SESSION_CONFIG || {};
   const config = {
@@ -295,12 +296,30 @@
     stateClass(root.querySelector(`[data-op-hook="${name}"]`), type);
   }
 
+  function readAdminGate() {
+    try {
+      const raw = sessionStorage.getItem(ADMIN_GATE_SESSION_KEY);
+      const gate = raw ? JSON.parse(raw) : null;
+      return gate && gate.ok ? gate : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function adminHeaders() {
+    const gate = readAdminGate();
+    const headers = { Accept: "application/json", "Content-Type": "application/json" };
+    if (gate.bearer) headers.Authorization = "Bearer " + gate.bearer;
+    if (gate.confirmKey) headers["X-Confirm-Key"] = gate.confirmKey;
+    return headers;
+  }
+
   async function requestJson(url, options = {}) {
     const res = await fetch(url, {
       credentials: "include",
       cache: "no-store",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      ...options
+      ...options,
+      headers: { ...adminHeaders(), ...(options.headers || {}) }
     });
     const raw = await res.text();
     let data = null;
