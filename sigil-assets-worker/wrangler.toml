@@ -1,0 +1,15 @@
+name = "sigil-assets-worker"
+main = "src/index.ts"
+compatibility_date = "2026-04-30"
+workers_dev = true
+
+# Production route for external Webflow assets.
+# DNS status: sigil.mmdbkk.com is a proxied CNAME in Cloudflare.
+[[routes]]
+pattern = "sigil.mmdbkk.com/a*"
+zone_name = "mmdbkk.com"
+
+# Optional www-safe alias if needed later.
+# [[routes]]
+# pattern = "www.mmdbkk.com/a*"
+# zone_name = "mmdbkk.com"
