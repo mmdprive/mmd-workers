@@ -17,6 +17,17 @@
   const formatPoints = (value) => Number(value || 0).toLocaleString("th-TH");
   const formatTHB = (value) => Number(value || 0).toLocaleString("th-TH");
 
+  const COPY = {
+    defaultStatus: "รอให้ผมอ่านข้อมูลให้ก่อนครับ",
+    loading: "ขอผมเช็กข้อมูลของคุณสักครู่นะครับ",
+    checking: "กำลังดู points และประวัติที่เกี่ยวข้องให้ครับ",
+    apiFail: "ระบบเช็กอัตโนมัติยังไม่ตอบกลับครับ · ไม่เป็นไร เดี๋ยวผมรับไว้ดูต่อให้ก่อน",
+    missingConsent: "กรุณาติ๊กยินยอมก่อนส่งตรวจสิทธิ์ครับ",
+    checkFirst: "ขอผมเช็กข้อมูลก่อนส่งต่อครับ จะได้พาไปทางที่เหมาะที่สุด",
+    submitBusy: "กำลังพาคุณไปขั้นตอนถัดไป...",
+    review: "เคสนี้ผมขอดูให้เองก่อนครับ · ข้อมูลบางส่วนยังต้องตรวจเพิ่มนิดหนึ่ง",
+  };
+
   const state = {
     action: "VIP_RENEWAL",
     paymentMethod: "Points / Per Review",
@@ -32,6 +43,16 @@
   function setText(id, value) {
     const el = byId(id);
     if (el) el.textContent = value;
+  }
+
+  function setStatus(value, kind = "waiting") {
+    setText("sumStatus", value);
+    const statusEl = byId("sumStatus");
+    if (statusEl) {
+      statusEl.dataset.statusKind = kind;
+      statusEl.classList.remove("is-success", "is-warning", "is-review", "is-waiting");
+      statusEl.classList.add(`is-${kind}`);
+    }
   }
 
   function value(id) {
@@ -78,7 +99,7 @@
     if (!value("phone")) missing.push("เบอร์โทร");
     if (!value("telegram")) missing.push("Telegram");
     if (missing.length) {
-      alert("ขอข้อมูลเพิ่มก่อนครับ: " + missing.join(", "));
+      alert("ขอข้อมูลเพิ่มอีกนิดนะครับ: " + missing.join(", "));
       return false;
     }
     return true;
@@ -192,13 +213,12 @@
 
     if (isFormerMemberGapOver365(result)) {
       state.route = "trust_inme_resignup_required";
-      state.paymentMethod = "Trust / inme";
+      state.paymentMethod = "สมัครสมาชิกใหม่ก่อน";
       state.requiresNewSignup = true;
-      state.reason = "former_member_gap_over_365";
+      state.reason = "former_member_gap_over_365_soft_review";
       state.pointsShortfall = null;
       state.topupAmountTHB = null;
-      const gapDays = daysSince(getLastServiceDate(result));
-      return `เจอประวัติสมาชิกเดิม แต่ไม่ได้ใช้บริการเกิน 1 ปี (${gapDays} วัน) · ขอพากลับไป Trust / inme เพื่อสมัครใหม่ก่อนครับ`;
+      return "ผมเจอประวัติเดิมของคุณแล้วครับ · แต่ห่างจากการใช้งานไปนาน ผมขอพาไปสมัครสมาชิกใหม่ก่อน แล้วค่อยดูข้อมูลเดิมให้ต่อ";
     }
 
     const balance = Number(result?.points_balance ?? result?.context?.points?.balance ?? NaN);
@@ -208,7 +228,7 @@
       state.topupAmountTHB = null;
       state.route = "per_review";
       state.paymentMethod = "Points / Per Review";
-      return "ยังอ่าน points balance อัตโนมัติไม่ได้ครับ ผมจะรับไว้เป็น Per review ก่อน";
+      return COPY.review;
     }
 
     state.pointsBalance = balance;
@@ -218,26 +238,26 @@
     if (state.action === "PER_REVIEW") {
       state.route = "per_review";
       state.paymentMethod = "Points / Per Review";
-      return `มี ${formatPoints(balance)} points · รับเป็น Per review ให้ก่อนครับ`;
+      return `เคสนี้ผมขอดูให้เองก่อนครับ · ตอนนี้มี ${formatPoints(balance)} points ผมจะอ่านประวัติประกอบให้อีกที`;
     }
 
     if (balance >= VIP_POINTS_REQUIRED) {
       state.route = "vip_auto";
       state.paymentMethod = "Points";
-      return `มี ${formatPoints(balance)} points · พร้อมหัก 1,200 points เพื่อเปิด / ต่อสิทธิ์ VIP`;
+      return `พร้อมแล้วครับ · คุณมี ${formatPoints(balance)} points ผมสามารถเปิด / ต่อสิทธิ์ VIP ให้ได้เลย`;
     }
 
     state.route = "points_topup_required";
     state.paymentMethod = "Top up Points";
-    return `มี ${formatPoints(balance)} points · ขาดอีก ${formatPoints(state.pointsShortfall)} points · Top up ประมาณ ${formatTHB(state.topupAmountTHB)} บาท`;
+    return `เกือบพร้อมแล้วครับ · ตอนนี้มี ${formatPoints(balance)} points ขาดอีก ${formatPoints(state.pointsShortfall)} points เดี๋ยวผมพาเติมเฉพาะส่วนที่ขาด`;
   }
 
   function renderStatus(data) {
     state.lastStatus = data;
     const result = data && data.data ? data.data : null;
-    const found = result?.found ? "พบข้อมูลสมาชิก" : "ยังไม่พบข้อมูลเดิม";
     const routeText = decideRoute(result || {});
-    setText("sumStatus", `${found} · ${routeText}`);
+    const kind = state.route === "vip_auto" ? "success" : state.route === "points_topup_required" ? "warning" : state.route === "per_review" ? "review" : "waiting";
+    setStatus(routeText, kind);
     syncSummary();
   }
 
@@ -245,16 +265,16 @@
     if (state.route === "trust_inme_resignup_required") {
       await postJson(API.intake, intakePayload()).catch(() => null);
       window.location.href = TRUST_INME_URL;
-      return "กำลังพากลับไป Trust / inme เพื่อเริ่มสมัครใหม่ให้ถูกต้องครับ";
+      return "ผมกำลังพาไปสมัครสมาชิกใหม่ก่อนนะครับ ข้อมูลเดิมที่ควรดูต่อผมจะไม่ตัดทิ้งครับ";
     }
 
     if (state.route === "vip_auto") {
       try {
         await postJson(API.activate, activatePayload());
-        return "หัก points และส่งคำขอเปิด / ต่อสิทธิ์ VIP แล้วครับ";
+        return "เรียบร้อยครับ ผมส่งคำขอเปิด / ต่อสิทธิ์ VIP ด้วย points ให้แล้ว";
       } catch (error) {
         await postJson(API.intake, intakePayload());
-        return "ส่งเข้า Per review แล้วครับ เพราะระบบหัก points อัตโนมัติยังไม่สำเร็จ";
+        return "ระบบหัก points อัตโนมัติยังไม่สำเร็จครับ · ไม่เป็นไร ผมรับไว้ดูต่อให้ก่อน";
       }
     }
 
@@ -263,15 +283,15 @@
         const response = await postJson(API.topup, topupPayload());
         const payUrl = response?.data?.payment_url || response?.payment_url || response?.data?.url || response?.url;
         if (payUrl) window.location.href = payUrl;
-        return payUrl ? "กำลังพาไปหน้า Top up points ครับ" : "สร้างคำขอ Top up points แล้วครับ";
+        return payUrl ? "เดี๋ยวผมพาไปเติม points เฉพาะส่วนที่ขาดครับ" : "ผมสร้างคำขอเติม points ให้แล้วครับ";
       } catch (error) {
         await postJson(API.intake, intakePayload());
-        return "ส่งเข้า Per review แล้วครับ เพราะระบบ Top up อัตโนมัติยังไม่สำเร็จ";
+        return "ระบบเติม points อัตโนมัติยังไม่สำเร็จครับ · ผมรับไว้ดูต่อให้ก่อน";
       }
     }
 
     await postJson(API.intake, intakePayload());
-    return "ส่งเข้า Per review แล้วครับ";
+    return "รับเรื่องแล้วครับ เดี๋ยวผมตรวจสิทธิ์ให้ต่อเอง";
   }
 
   function setActive(selector, active) {
@@ -286,7 +306,7 @@
         state.action = button.dataset.action || "VIP_RENEWAL";
         state.route = state.action === "PER_REVIEW" ? "per_review" : "unknown";
         state.lastStatus = null;
-        setText("sumStatus", state.action === "PER_REVIEW" ? "ผมจะรับไว้ตรวจเป็น Per review ก่อนครับ" : "VIP Access ใช้ 1,200 points");
+        setStatus(state.action === "PER_REVIEW" ? "เคสนี้ผมจะดูให้เองก่อนครับ" : "คุณไม่ต้องรู้สถานะตัวเองก่อนครับ · กรอกเท่าที่จำได้ เดี๋ยวผมพาไปทางที่เหมาะที่สุดเอง", "waiting");
       });
     });
   }
@@ -316,14 +336,14 @@
       check.addEventListener("click", async () => {
         syncSummary();
         if (!validate()) return;
-        setBusy(check, true, "กำลังเช็ก points...");
-        setText("sumStatus", "กำลังเช็ก points balance กับระบบ MMD ครับ");
+        setBusy(check, true, "ขอผมเช็กสักครู่นะครับ...");
+        setStatus(COPY.checking, "waiting");
         try {
           renderStatus(await postJson(API.status, statusPayload()));
         } catch (error) {
           state.route = "per_review";
           state.paymentMethod = "Points / Per Review";
-          setText("sumStatus", "เช็ก points อัตโนมัติไม่สำเร็จ ผมจะรับเป็น Per review ก่อนครับ");
+          setStatus(COPY.apiFail, "review");
           syncSummary();
         } finally {
           setBusy(check, false);
@@ -338,20 +358,20 @@
         if (!validate()) return;
         const consent = byId("consent");
         if (!consent || !consent.checked) {
-          alert("กรุณาติ๊กยินยอมก่อนส่งตรวจสิทธิ์ครับ");
+          alert(COPY.missingConsent);
           return;
         }
         if (state.route === "unknown") {
-          alert("ขอเช็ก points ก่อนส่งต่อครับ");
+          alert(COPY.checkFirst);
           return;
         }
-        setBusy(submit, true, "กำลังดำเนินการ...");
+        setBusy(submit, true, COPY.submitBusy);
         try {
           const done = await runFinalFlow();
-          setText("sumStatus", done);
+          setStatus(done, state.route === "vip_auto" ? "success" : "review");
           alert(done);
         } catch (error) {
-          setText("sumStatus", "ส่งอัตโนมัติไม่สำเร็จ กรุณาทัก Per โดยตรงครับ");
+          setStatus("ส่งอัตโนมัติไม่สำเร็จครับ · กรุณาทัก Per โดยตรงพร้อมข้อมูลที่กรอกไว้", "review");
         } finally {
           setBusy(submit, false);
         }
@@ -365,6 +385,7 @@
     bindPayments();
     bindPrimary();
     syncSummary();
+    setStatus(COPY.defaultStatus, "waiting");
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
