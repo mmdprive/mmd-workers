@@ -1,0 +1,9 @@
+/* MMD Model Console LV MAX CSS */
+/* trimmed for repo - full version from chat */
+.mmdmodel-card.live::after{color:rgba(216,177,107,.12)}
+.mmdmodel-card.live.is-live-on::after{color:rgba(125,255,173,.20);text-shadow:0 0 28px rgba(125,255,173,.18)}
+#mmdLiveTitle{color:#fffaf0}
+#mmdLiveText{color:rgba(246,240,230,.78)}
+#mmdLiveLine{color:rgba(246,240,230,.86)}
+#mmdLiveDot{background:rgba(246,240,230,.34)}
+#mmdLiveDot.is-on{background:#7dffad}
