@@ -64,9 +64,17 @@
 .mmd-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;border:1px solid rgba(201,163,74,.4);background:#111;color:#fff;cursor:pointer}
 .mmd-bank-line{display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);padding:12px 0;gap:16px}
 .mmd-qr{width:220px;max-width:100%;border-radius:18px;background:#fff;padding:10px;display:block;margin:18px auto}
+/* /pay/renewal hero viewport patch: make the hero fit the first screen better */
+.mmd-renewal-lv10 .mmd-renewal-hero{min-height:calc(100vh - 48px)!important;max-height:860px!important}
+.mmd-renewal-lv10 .mmd-renewal-hero-inner{min-height:calc(100vh - 48px)!important;max-height:860px!important;padding:42px 50px 34px!important;align-items:center!important}
+.mmd-renewal-lv10 .mmd-pill{margin-bottom:22px!important}
+.mmd-renewal-lv10 .mmd-hero-title{font-size:clamp(52px,6.4vw,104px)!important}
+.mmd-renewal-lv10 .mmd-hero-copy{margin-top:22px!important;padding:24px 30px!important;font-size:18px!important;line-height:1.8!important}
+.mmd-renewal-lv10 .mmd-hero-summary{align-self:center!important}
 @keyframes mmdFadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 @keyframes mmdFade{from{opacity:0}to{opacity:1}}
 @keyframes mmdScale{from{opacity:0;transform:scale(.98) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes mmdPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.75)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 @media(max-width:820px){.mmd-renewal{padding:42px 14px}.mmd-grid,.mmd-choice-grid,.mmd-pay-panels{grid-template-columns:1fr}.mmd-hero{padding:26px}.mmd-row,.mmd-rule,.mmd-bank-line{flex-direction:column}.mmd-row strong,.mmd-rule span{text-align:left}}
+@media(max-width:760px){.mmd-renewal-lv10{padding:12px!important}.mmd-renewal-lv10 .mmd-renewal-hero{border-radius:28px!important;min-height:auto!important;max-height:none!important}.mmd-renewal-lv10 .mmd-renewal-hero-inner{padding:34px 22px!important;min-height:auto!important;max-height:none!important}.mmd-renewal-lv10 .mmd-hero-title{font-size:48px!important}.mmd-renewal-lv10 .mmd-hero-copy{font-size:16px!important;padding:20px!important}}
