@@ -91,6 +91,31 @@
   text-align:center!important;
   padding:0 24px!important;
   font-size:17px!important;
+  white-space:nowrap!important;
+}
+
+.mmdops .mmdops__goldBtn,
+.mmdops .mmdops__goldBtn *,
+.mmdops a.mmdops__goldBtn,
+.mmdops a.mmdops__goldBtn:visited{
+  color:#120b02!important;
+  text-shadow:none!important;
+  -webkit-text-fill-color:#120b02!important;
+}
+
+.mmdops .mmdops__darkBtn,
+.mmdops .mmdops__darkBtn *,
+.mmdops button.mmdops__darkBtn,
+.mmdops a.mmdops__darkBtn,
+.mmdops a.mmdops__darkBtn:visited{
+  color:rgba(255,250,238,.96)!important;
+  text-shadow:none!important;
+  -webkit-text-fill-color:rgba(255,250,238,.96)!important;
+}
+
+.mmdops__darkBtn{
+  background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.045))!important;
+  border-color:rgba(255,255,255,.22)!important;
 }
 
 .mmdops__gate{
