@@ -1,0 +1,27 @@
+/* MMD SIGIL Private Models - V2 Polish Override. Load after sigil-private-models.css */
+.spm-grid{gap:16px!important}
+.spm-grid:before{content:"MODEL VISIBILITY IS ACCESS-BASED / การมองเห็นขึ้นอยู่กับสิทธิ์ที่ยืนยันแล้ว";grid-column:1/-1;display:block;padding:12px 16px;border:1px solid rgba(244,211,123,.16);background:rgba(5,5,4,.42);color:rgba(244,211,123,.62);font:700 10px/1.4 var(--mono);letter-spacing:.16em;text-transform:uppercase}
+.spm-model-card{min-height:448px!important;grid-template-rows:230px auto!important;background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01)),radial-gradient(circle at 85% 8%,rgba(244,211,123,.075),transparent 25%),rgba(4,4,3,.82)!important}
+.spm-model-card:before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.02),transparent 26%,rgba(0,0,0,.12))}
+.spm-model-body{position:relative!important;z-index:2!important}
+.spm-model-media{height:230px!important}
+.spm-model-media:before{content:attr(data-layer-label);position:absolute;right:14px;bottom:14px;z-index:3;max-width:72%;padding:8px 10px;border:1px solid rgba(244,211,123,.24);background:rgba(0,0,0,.46);color:rgba(244,211,123,.82);font:700 9px/1.25 var(--mono);letter-spacing:.14em;text-transform:uppercase;text-align:right}
+.spm-model-card:not(:first-child) .spm-model-media img{filter:contrast(1.05) saturate(.48) brightness(.42) blur(2px)!important;transform:scale(1.08)!important}
+.spm-model-card:nth-child(2) .spm-model-media{background:radial-gradient(circle at 45% 28%,rgba(244,211,123,.13),transparent 18%),linear-gradient(135deg,#111,#020202)!important}
+.spm-model-card:nth-child(3) .spm-model-media{background:radial-gradient(circle at 52% 30%,rgba(244,211,123,.10),transparent 17%),linear-gradient(135deg,#0d0b08,#010101)!important}
+.spm-model-card:nth-child(4) .spm-model-media{background:radial-gradient(circle at 54% 35%,rgba(239,232,220,.10),transparent 14%),linear-gradient(135deg,#080808,#000)!important}
+.spm-model-card:not(:first-child) .spm-model-media:after{background:linear-gradient(180deg,rgba(244,211,123,.04),rgba(0,0,0,.18) 38%,rgba(0,0,0,.86))!important}
+.spm-model-name h3{font-size:17px!important}
+.spm-model-name span{font-size:9px!important;color:rgba(244,211,123,.68)!important}
+.spm-model-meta{gap:9px!important;padding-top:2px!important}
+.spm-model-meta div{grid-template-columns:1.1fr auto!important;font-size:12px!important}
+.spm-model-meta span{color:rgba(239,232,220,.48)!important}
+.spm-model-meta strong{color:rgba(244,211,123,.78)!important}
+.spm-model-note{min-height:64px!important;color:rgba(239,232,220,.60)!important}
+.spm-card-actions button{min-height:42px!important;background:linear-gradient(90deg,rgba(201,155,67,.045),rgba(244,211,123,.035))!important}
+.spm-card-actions button:hover:not([disabled]){border-color:rgba(244,211,123,.55)!important;box-shadow:0 0 22px rgba(244,211,123,.10)!important}
+.spm-filter button strong{font-size:10px!important}.spm-filter button span{font-size:9px!important}
+.spm-model-card.is-locked{opacity:.84}.spm-model-card.is-locked .spm-card-actions button{border-color:rgba(244,211,123,.14)!important}
+.spm-route-row h4,.spm-core-note p,.spm-kenji-copy p{word-break:keep-all!important}
+@media(max-width:1320px){.spm-grid:before{grid-column:1/-1}.spm-model-note{min-height:auto!important}}
+@media(max-width:760px){.spm-model-card{min-height:auto!important}.spm-model-media{height:250px!important}.spm-model-card{grid-template-rows:250px auto!important}.spm-grid:before{font-size:9px!important;letter-spacing:.12em!important}}
