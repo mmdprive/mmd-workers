@@ -1,0 +1,483 @@
+/*
+  MMD SIGIL Access - Private Operating System Skin v2
+  Page: /sigil/access
+  Webflow-safe scoped CSS. Use jsDelivr link, not raw.githubusercontent.com.
+*/
+
+.sigil-os,
+.sigil-os * { box-sizing: border-box !important; }
+
+.sigil-os {
+  --mmd-black: #020202;
+  --mmd-deep: #060504;
+  --mmd-line: rgba(255, 226, 157, 0.18);
+  --mmd-gold: #c99b43;
+  --mmd-gold-2: #f4d37b;
+  --mmd-white: #efe8dc;
+  --mmd-muted: rgba(239, 232, 220, 0.58);
+  --mmd-faint: rgba(239, 232, 220, 0.34);
+  --mmd-font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mmd-serif: "Cormorant Garamond", Georgia, serif;
+  --mmd-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  color: var(--mmd-white) !important;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(201, 155, 67, 0.12), transparent 35%),
+    radial-gradient(circle at 15% 5%, rgba(201, 155, 67, 0.07), transparent 24%),
+    linear-gradient(180deg, #050403 0%, #000 100%) !important;
+  font-family: var(--mmd-font) !important;
+  isolation: isolate !important;
+}
+
+.sigil-os::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -4;
+  opacity: 0.38;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 42px 42px;
+  -webkit-mask-image: radial-gradient(circle at center, #000 0%, transparent 74%);
+  mask-image: radial-gradient(circle at center, #000 0%, transparent 74%);
+}
+
+.sigil-os::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.92), transparent 20%, transparent 80%, rgba(0,0,0,0.92)),
+    linear-gradient(180deg, rgba(0,0,0,0.08), rgba(0,0,0,0.72));
+  pointer-events: none;
+}
+
+.sigil-os img { max-width: 100% !important; height: auto; }
+
+.sigil-os-frame {
+  position: absolute !important;
+  inset: 10px !important;
+  z-index: 5 !important;
+  border: 1px solid rgba(201, 155, 67, 0.38) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035), inset 0 0 42px rgba(201,155,67,0.08) !important;
+  pointer-events: none !important;
+}
+
+.sigil-os-frame::before,
+.sigil-os-frame::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 2px;
+  background: var(--mmd-gold-2);
+  box-shadow: 0 0 16px rgba(244,211,123,0.8);
+}
+.sigil-os-frame::before { top: 10px; right: 16px; }
+.sigil-os-frame::after { bottom: 10px; left: 16px; }
+
+.sigil-os-noise {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: -2 !important;
+  opacity: 0.18 !important;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(255,255,255,0.18) 0 1px, transparent 1px),
+    radial-gradient(circle at 80% 70%, rgba(255,255,255,0.12) 0 1px, transparent 1px);
+  background-size: 3px 3px, 5px 5px;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+.sigil-os-shell {
+  position: relative !important;
+  z-index: 1 !important;
+  width: min(1840px, calc(100% - 42px)) !important;
+  min-height: 100vh !important;
+  margin: 0 auto !important;
+  padding: 28px 22px 26px !important;
+}
+
+.sigil-os-top {
+  display: grid !important;
+  grid-template-columns: auto 1fr auto !important;
+  align-items: center !important;
+  gap: 24px !important;
+  padding: 10px 18px 26px !important;
+  border-bottom: 1px solid rgba(201,155,67,0.22) !important;
+}
+
+.sigil-os-brand {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  color: var(--mmd-white) !important;
+  text-decoration: none !important;
+  min-width: 0 !important;
+}
+
+.sigil-os-brand img {
+  width: 46px !important;
+  height: 46px !important;
+  max-width: 46px !important;
+  min-width: 46px !important;
+  object-fit: contain !important;
+  display: block !important;
+  border-radius: 0 !important;
+  filter: drop-shadow(0 0 12px rgba(244,211,123,0.28)) !important;
+}
+
+.sigil-os-title {
+  display: inline-block !important;
+  color: var(--mmd-white) !important;
+  font-family: var(--mmd-serif) !important;
+  font-size: clamp(26px, 2.5vw, 40px) !important;
+  line-height: 1 !important;
+  letter-spacing: 0.09em !important;
+  white-space: nowrap !important;
+  text-shadow: 0 0 18px rgba(244,211,123,0.08) !important;
+}
+
+.sigil-os-mode,
+.sigil-os-status {
+  display: flex !important;
+  align-items: center !important;
+  gap: 18px !important;
+  min-width: 0 !important;
+}
+.sigil-os-status { justify-content: flex-end !important; gap: 14px !important; }
+.sigil-os-mode span { width: 1px !important; height: 28px !important; background: rgba(255,255,255,0.18) !important; }
+
+.sigil-os-mode strong,
+.sigil-os-status strong,
+.sigil-panel-head h3,
+.sigil-operations-head span,
+.sigil-log-head span {
+  color: rgba(244, 211, 123, 0.78) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.32em !important;
+  text-transform: uppercase !important;
+  line-height: 1.25 !important;
+}
+
+.sigil-os-status i,
+.sigil-panel-head i,
+.sigil-live i {
+  display: inline-block !important;
+  width: 9px !important;
+  height: 9px !important;
+  border-radius: 999px !important;
+  background: var(--mmd-gold-2) !important;
+  box-shadow: 0 0 18px rgba(244,211,123,0.75) !important;
+}
+
+.sigil-lang {
+  appearance: none !important;
+  border: 1px solid rgba(201,155,67,0.38) !important;
+  background: rgba(201,155,67,0.06) !important;
+  color: var(--mmd-gold-2) !important;
+  padding: 8px 10px !important;
+  font: 700 11px var(--mmd-font) !important;
+  letter-spacing: 0.12em !important;
+  cursor: pointer !important;
+  border-radius: 0 !important;
+}
+
+.sigil-os-main {
+  display: grid !important;
+  grid-template-columns: 34% 1fr 34% !important;
+  gap: 26px !important;
+  align-items: center !important;
+  min-height: 600px !important;
+  padding: 28px 18px 12px !important;
+}
+
+.sigil-sequence {
+  position: relative !important;
+  display: grid !important;
+  gap: 48px !important;
+  padding-left: 18px !important;
+}
+.sigil-sequence::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  bottom: 22px;
+  left: 43px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(201,155,67,0.38), rgba(201,155,67,0.18), transparent);
+}
+.sigil-step {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: 54px 1fr !important;
+  align-items: center !important;
+  gap: 22px !important;
+  opacity: 0.55;
+  transform: translateX(-4px);
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+.sigil-step.is-complete,
+.sigil-step.is-active { opacity: 1 !important; transform: translateX(0) !important; }
+.sigil-step-node {
+  position: relative !important;
+  z-index: 1 !important;
+  width: 54px !important;
+  height: 54px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid rgba(201,155,67,0.28) !important;
+  border-radius: 999px !important;
+  background: radial-gradient(circle, rgba(201,155,67,0.16), rgba(0,0,0,0.65) 62%) !important;
+  box-shadow: inset 0 0 0 7px rgba(0,0,0,0.58), 0 0 24px rgba(201,155,67,0.09) !important;
+}
+.sigil-step.is-active .sigil-step-node {
+  border-color: rgba(244,211,123,0.9) !important;
+  box-shadow: inset 0 0 0 7px rgba(0,0,0,0.58), 0 0 28px rgba(244,211,123,0.38) !important;
+}
+.sigil-step-node svg {
+  width: 24px !important;
+  height: 24px !important;
+  fill: none !important;
+  stroke: var(--mmd-gold-2) !important;
+  stroke-width: 2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+.sigil-step h3 {
+  margin: 0 !important;
+  color: rgba(239,232,220,0.86) !important;
+  font-size: clamp(14px, 1.2vw, 18px) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.22em !important;
+  text-transform: uppercase !important;
+  line-height: 1.25 !important;
+}
+.sigil-step p {
+  margin: 9px 0 0 !important;
+  color: rgba(239,232,220,0.45) !important;
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.24em !important;
+  text-transform: uppercase !important;
+}
+.sigil-step.is-active p { color: var(--mmd-gold-2) !important; }
+
+.sigil-core {
+  position: relative !important;
+  min-height: 570px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.sigil-core-grid {
+  position: absolute !important;
+  inset: 0 !important;
+  opacity: 0.3 !important;
+  background:
+    radial-gradient(circle, rgba(201,155,67,0.12), transparent 42%),
+    linear-gradient(90deg, transparent 49.9%, rgba(201,155,67,0.22), transparent 50.1%),
+    linear-gradient(0deg, transparent 49.9%, rgba(201,155,67,0.22), transparent 50.1%) !important;
+  -webkit-mask-image: radial-gradient(circle at center, #000 0%, transparent 70%);
+  mask-image: radial-gradient(circle at center, #000 0%, transparent 70%);
+}
+.sigil-core-cross {
+  position: absolute !important;
+  background: linear-gradient(90deg, transparent, rgba(244,211,123,0.85), transparent) !important;
+  opacity: 0.65 !important;
+  box-shadow: 0 0 24px rgba(244,211,123,0.28) !important;
+}
+.sigil-core-cross-x { width: 88% !important; height: 1px !important; top: 50% !important; left: 6% !important; }
+.sigil-core-cross-y { width: 1px !important; height: 88% !important; left: 50% !important; top: 6% !important; background: linear-gradient(180deg, transparent, rgba(244,211,123,0.85), transparent) !important; }
+.sigil-ring {
+  position: absolute !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(201,155,67,0.22) !important;
+  box-shadow: inset 0 0 42px rgba(201,155,67,0.04) !important;
+}
+.ring-1 { width: 470px !important; height: 470px !important; animation: ringRotate 22s linear infinite; border-top-color: rgba(244,211,123,0.78) !important; border-right-color: rgba(244,211,123,0.34) !important; }
+.ring-2 { width: 370px !important; height: 370px !important; animation: ringRotateReverse 18s linear infinite; border-bottom-color: rgba(244,211,123,0.62) !important; }
+.ring-3 { width: 275px !important; height: 275px !important; animation: ringPulse 3.6s ease-in-out infinite; border-color: rgba(201,155,67,0.34) !important; }
+.ring-4 { width: 164px !important; height: 164px !important; border-color: rgba(244,211,123,0.45) !important; box-shadow: 0 0 36px rgba(244,211,123,0.08) !important; }
+.sigil-ring-ticks {
+  position: absolute !important;
+  width: 420px !important;
+  height: 420px !important;
+  border-radius: 999px !important;
+  background: repeating-conic-gradient(from 0deg, rgba(244,211,123,0.55) 0deg 0.7deg, transparent 0.7deg 3.8deg) !important;
+  -webkit-mask: radial-gradient(circle, transparent 63%, #000 64%, #000 65%, transparent 66%);
+  mask: radial-gradient(circle, transparent 63%, #000 64%, #000 65%, transparent 66%);
+  opacity: 0.72 !important;
+  animation: ringRotate 40s linear infinite;
+}
+.sigil-core-emblem {
+  position: relative !important;
+  z-index: 2 !important;
+  width: 118px !important;
+  height: 118px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 1px solid rgba(244,211,123,0.5) !important;
+  border-radius: 999px !important;
+  background: radial-gradient(circle, rgba(201,155,67,0.20), rgba(0,0,0,0.68) 64%) !important;
+  box-shadow: 0 0 48px rgba(244,211,123,0.18), inset 0 0 30px rgba(201,155,67,0.12) !important;
+}
+.sigil-core-emblem img {
+  width: 68px !important;
+  height: 68px !important;
+  max-width: 68px !important;
+  object-fit: contain !important;
+  opacity: 0.9 !important;
+  filter: sepia(1) saturate(1.3) hue-rotate(350deg) brightness(1.2) drop-shadow(0 0 18px rgba(244,211,123,0.32)) !important;
+}
+.sigil-decrypt {
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 42px !important;
+  width: min(430px, 78%) !important;
+  transform: translateX(-50%) !important;
+  display: grid !important;
+  grid-template-columns: 1fr 90px !important;
+  gap: 8px 14px !important;
+  align-items: center !important;
+}
+.sigil-decrypt span { grid-column: 1 / -1 !important; color: var(--mmd-gold) !important; font-size: 11px !important; font-weight: 750 !important; letter-spacing: 0.2em !important; }
+.sigil-decrypt-bar { height: 4px !important; background: rgba(255,255,255,0.12) !important; overflow: hidden !important; }
+.sigil-decrypt-bar i { display: block !important; width: 78%; height: 100%; background: linear-gradient(90deg, var(--mmd-gold), var(--mmd-gold-2), rgba(244,211,123,0.4)) !important; box-shadow: 0 0 16px rgba(244,211,123,0.65) !important; transition: width 600ms ease; }
+.sigil-decrypt strong { color: var(--mmd-gold-2) !important; font-size: 16px !important; font-weight: 600 !important; }
+
+.sigil-side { display: grid !important; gap: 16px !important; }
+.sigil-panel {
+  position: relative !important;
+  overflow: hidden !important;
+  padding: 26px !important;
+  border: 1px solid var(--mmd-line) !important;
+  background: linear-gradient(135deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012)), rgba(5, 5, 4, 0.72) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 20px 70px rgba(0,0,0,0.48) !important;
+}
+.sigil-panel::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 92% 14%, rgba(244,211,123,0.12), transparent 24%); pointer-events: none; }
+.sigil-panel-head { position: relative !important; z-index: 1 !important; display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 14px !important; padding-bottom: 20px !important; border-bottom: 1px solid rgba(255,255,255,0.10) !important; }
+.sigil-panel-head h3 { margin: 0 !important; }
+.sigil-access-list { position: relative !important; z-index: 1 !important; margin: 18px 0 0 !important; display: grid !important; gap: 14px !important; }
+.sigil-access-list div { display: grid !important; grid-template-columns: 1fr auto !important; gap: 18px !important; }
+.sigil-access-list dt { color: var(--mmd-muted) !important; font-size: 16px !important; margin: 0 !important; }
+.sigil-access-list dd { margin: 0 !important; color: var(--mmd-gold-2) !important; font-size: 16px !important; text-align: right !important; }
+.sigil-live { display: inline-flex !important; align-items: center !important; gap: 10px !important; color: var(--mmd-gold-2) !important; font-size: 12px !important; font-weight: 700 !important; letter-spacing: 0.18em !important; }
+
+.sigil-kenji-grid { position: relative !important; z-index: 1 !important; display: grid !important; grid-template-columns: 148px 1fr !important; gap: 22px !important; align-items: center !important; padding-top: 20px !important; }
+.sigil-kenji-portrait { position: relative !important; overflow: hidden !important; height: 210px !important; border: 1px solid rgba(201,155,67,0.52) !important; background: #050505 !important; clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
+.sigil-kenji-portrait img { width: 100% !important; height: 100% !important; max-width: none !important; object-fit: cover !important; object-position: center top !important; filter: contrast(1.06) saturate(0.88) brightness(0.88) !important; transform: scale(1.05) !important; display: block !important; }
+.sigil-kenji-portrait::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(244,211,123,0.12), transparent 30%), linear-gradient(0deg, rgba(0,0,0,0.44), transparent 46%); }
+.sigil-kenji-portrait span { position: absolute; left: 14px; bottom: 14px; z-index: 2; width: 24px; height: 24px; border: 1px solid rgba(244,211,123,0.6); border-radius: 999px; background: radial-gradient(circle, rgba(244,211,123,0.28), rgba(0,0,0,0.52)); }
+.sigil-kenji-copy h4 { margin: 0 0 24px !important; color: rgba(239,232,220,0.86) !important; font-size: 15px !important; font-weight: 650 !important; letter-spacing: 0.18em !important; line-height: 1.35 !important; }
+.sigil-kenji-copy > span { display: block !important; margin-bottom: 14px !important; color: rgba(239,232,220,0.34) !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.24em !important; }
+.sigil-kenji-copy p { margin: 0 !important; color: rgba(239,232,220,0.74) !important; font-size: 15px !important; line-height: 1.7 !important; }
+.sigil-mini-wave { display: flex !important; align-items: end !important; gap: 4px !important; height: 36px !important; margin-top: 24px !important; opacity: 0.5 !important; }
+.sigil-mini-wave i { width: 2px !important; background: rgba(244,211,123,0.5) !important; animation: wave 1.2s ease-in-out infinite; }
+.sigil-mini-wave i:nth-child(1) { height: 8px; animation-delay: 0s; }
+.sigil-mini-wave i:nth-child(2) { height: 15px; animation-delay: .1s; }
+.sigil-mini-wave i:nth-child(3) { height: 11px; animation-delay: .2s; }
+.sigil-mini-wave i:nth-child(4) { height: 24px; animation-delay: .3s; }
+.sigil-mini-wave i:nth-child(5) { height: 18px; animation-delay: .4s; }
+.sigil-mini-wave i:nth-child(6) { height: 28px; animation-delay: .5s; }
+.sigil-mini-wave i:nth-child(7) { height: 13px; animation-delay: .6s; }
+.sigil-mini-wave i:nth-child(8) { height: 20px; animation-delay: .7s; }
+.sigil-mini-wave i:nth-child(9) { height: 10px; animation-delay: .8s; }
+
+.sigil-operations { position: relative !important; display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 0 !important; margin: 0 18px !important; padding: 50px 22px 22px !important; border: 1px solid var(--mmd-line) !important; background: linear-gradient(90deg, rgba(201,155,67,0.04), rgba(255,255,255,0.02), rgba(201,155,67,0.04)), rgba(5,5,4,0.72) !important; }
+.sigil-operations::after { content: ""; position: absolute; left: 26%; right: 26%; bottom: 22px; height: 1px; background: linear-gradient(90deg, transparent, rgba(244,211,123,0.9), transparent); box-shadow: 0 0 16px rgba(244,211,123,0.5); }
+.sigil-operations-head { position: absolute !important; left: 38px !important; top: 16px !important; }
+.sigil-operation { position: relative !important; display: grid !important; grid-template-columns: 78px 54px 1fr 36px !important; align-items: center !important; gap: 14px !important; min-height: 110px !important; border: 0 !important; border-right: 1px solid rgba(255,255,255,0.07) !important; background: transparent !important; color: var(--mmd-white) !important; text-align: left !important; cursor: pointer !important; }
+.sigil-operation:last-child { border-right: 0 !important; }
+.sigil-operation-core { width: 58px !important; height: 58px !important; border: 1px solid rgba(201,155,67,0.28) !important; border-radius: 999px !important; background: radial-gradient(circle, rgba(201,155,67,0.16), transparent 42%), repeating-conic-gradient(from 0deg, rgba(201,155,67,0.42) 0deg 4deg, transparent 4deg 18deg) !important; -webkit-mask-image: radial-gradient(circle, transparent 0 27%, #000 28%); mask-image: radial-gradient(circle, transparent 0 27%, #000 28%); transition: transform 350ms ease, filter 350ms ease; }
+.sigil-operation:hover .sigil-operation-core { transform: rotate(30deg) scale(1.05); filter: drop-shadow(0 0 18px rgba(244,211,123,0.36)); }
+.sigil-operation-index { color: rgba(239,232,220,0.36) !important; font-size: 21px !important; letter-spacing: 0.1em !important; }
+.sigil-operation-copy strong { display: block !important; color: rgba(239,232,220,0.78) !important; font-size: 13px !important; font-weight: 650 !important; letter-spacing: 0.12em !important; line-height: 1.35 !important; }
+.sigil-operation-copy small { display: block !important; margin-top: 11px !important; color: rgba(239,232,220,0.36) !important; font-size: 11px !important; font-weight: 750 !important; letter-spacing: 0.2em !important; }
+.sigil-operation.is-progress .sigil-operation-copy small,
+.sigil-operation.is-complete .sigil-operation-copy small { color: var(--mmd-gold-2) !important; }
+.sigil-operation-arrow { color: rgba(244,211,123,0.42) !important; font-size: 42px !important; font-weight: 200 !important; }
+
+.sigil-log-panel { display: grid !important; grid-template-columns: 220px 1fr !important; gap: 20px !important; margin: 14px 18px 0 !important; padding: 16px 22px !important; border: 1px solid rgba(201,155,67,0.16) !important; background: rgba(5,5,4,0.46) !important; }
+.sigil-log-head { display: flex !important; flex-direction: column !important; gap: 12px !important; }
+.sigil-log-head button { width: fit-content !important; padding: 8px 10px !important; border: 1px solid rgba(201,155,67,0.24) !important; background: rgba(201,155,67,0.04) !important; color: var(--mmd-muted) !important; font-size: 10px !important; letter-spacing: 0.16em !important; cursor: pointer !important; }
+.sigil-log { display: grid !important; gap: 8px !important; max-height: 96px !important; overflow: auto !important; color: rgba(239,232,220,0.56) !important; font: 12px/1.4 var(--mmd-mono) !important; }
+.sigil-log p { margin: 0 !important; }
+.sigil-log time { color: var(--mmd-gold) !important; margin-right: 10px !important; }
+
+.sigil-os-footer { display: grid !important; grid-template-columns: auto auto auto auto auto 1fr auto auto auto !important; align-items: center !important; gap: 22px !important; padding: 26px 28px 4px !important; color: rgba(239,232,220,0.32) !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.18em !important; text-transform: uppercase !important; }
+.sigil-os-footer strong { justify-self: center !important; width: 28px !important; height: 28px !important; border: 1px solid rgba(201,155,67,0.36) !important; border-radius: 999px !important; background: radial-gradient(circle, rgba(201,155,67,0.12), transparent 46%), repeating-conic-gradient(from 0deg, rgba(201,155,67,0.5) 0deg 4deg, transparent 4deg 18deg) !important; }
+
+@keyframes ringRotate { to { transform: rotate(360deg); } }
+@keyframes ringRotateReverse { to { transform: rotate(-360deg); } }
+@keyframes ringPulse { 0%, 100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 0.95; transform: scale(1.035); } }
+@keyframes wave { 0%, 100% { transform: scaleY(0.55); opacity: 0.35; } 50% { transform: scaleY(1); opacity: 0.85; } }
+.sigil-os.is-booting .sigil-os-shell { animation: bootReveal 1.2s ease both; }
+@keyframes bootReveal { 0% { opacity: 0; filter: blur(10px); transform: scale(0.992); } 100% { opacity: 1; filter: blur(0); transform: scale(1); } }
+
+@media (max-width: 1320px) {
+  .sigil-os-main { grid-template-columns: 1fr !important; min-height: auto !important; }
+  .sigil-sequence { grid-template-columns: repeat(5, 1fr) !important; gap: 12px !important; padding-left: 0 !important; }
+  .sigil-sequence::before { display: none !important; }
+  .sigil-step { grid-template-columns: 44px 1fr !important; gap: 12px !important; }
+  .sigil-step-node { width: 44px !important; height: 44px !important; }
+  .sigil-core { min-height: 520px !important; }
+  .sigil-side { grid-template-columns: 1fr 1fr !important; }
+  .sigil-operations { grid-template-columns: repeat(2, 1fr) !important; }
+  .sigil-operation:nth-child(3) { border-right: 0 !important; }
+}
+
+@media (max-width: 900px) {
+  .sigil-os-shell { width: min(100% - 24px, 760px) !important; padding-inline: 0 !important; }
+  .sigil-os-top { grid-template-columns: 1fr !important; gap: 16px !important; }
+  .sigil-os-title { white-space: normal !important; }
+  .sigil-os-mode span { display: none !important; }
+  .sigil-os-status { justify-content: space-between !important; flex-wrap: wrap !important; }
+  .sigil-sequence,
+  .sigil-side,
+  .sigil-operations,
+  .sigil-log-panel { grid-template-columns: 1fr !important; }
+  .sigil-core { min-height: 430px !important; }
+  .ring-1 { width: 330px !important; height: 330px !important; }
+  .ring-2 { width: 265px !important; height: 265px !important; }
+  .ring-3 { width: 195px !important; height: 195px !important; }
+  .ring-4 { width: 126px !important; height: 126px !important; }
+  .sigil-ring-ticks { width: 300px !important; height: 300px !important; }
+  .sigil-core-emblem { width: 92px !important; height: 92px !important; }
+  .sigil-core-emblem img { width: 54px !important; height: 54px !important; }
+  .sigil-kenji-grid { grid-template-columns: 112px 1fr !important; }
+  .sigil-kenji-portrait { height: 160px !important; }
+  .sigil-operation { grid-template-columns: 58px 44px 1fr 20px !important; border-right: 0 !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
+  .sigil-operation:last-child { border-bottom: 0 !important; }
+  .sigil-os-footer { display: flex !important; flex-wrap: wrap !important; gap: 12px !important; padding-bottom: 18px !important; }
+}
+
+@media (max-width: 560px) {
+  .sigil-os-frame { inset: 6px !important; }
+  .sigil-os-brand { align-items: flex-start !important; }
+  .sigil-os-brand img { width: 38px !important; height: 38px !important; max-width: 38px !important; min-width: 38px !important; }
+  .sigil-os-title { font-size: 25px !important; }
+  .sigil-os-mode strong,
+  .sigil-os-status strong,
+  .sigil-panel-head h3,
+  .sigil-operations-head span,
+  .sigil-log-head span { letter-spacing: 0.18em !important; }
+  .sigil-os-main { padding-inline: 6px !important; }
+  .sigil-panel { padding: 20px !important; }
+  .sigil-access-list div { grid-template-columns: 1fr !important; gap: 4px !important; }
+  .sigil-access-list dd { text-align: left !important; }
+  .sigil-kenji-grid { grid-template-columns: 1fr !important; }
+  .sigil-kenji-portrait { width: 130px !important; }
+  .sigil-operations { margin-inline: 6px !important; padding-inline: 14px !important; }
+  .sigil-log-panel { margin-inline: 6px !important; }
+}
