@@ -1,6 +1,7 @@
 export interface Env {
   INTERNAL_TOKEN: string;
   ADMIN_WORKER?: Fetcher;
+  ASSETS?: Fetcher;
   BROWSER_GATE_PASSWORD?: string;
   BROWSER_GATE_USERNAME?: string;
   CONFIRM_KEY?: string;

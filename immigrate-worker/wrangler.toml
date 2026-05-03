@@ -3,6 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2026-03-25"
 workers_dev = true
 
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
 [vars]
 AIRTABLE_BASE_ID = "appsV1ILPRfIjkaYg"
 AIRTABLE_TABLE_LINE_INBOX = "Line Inbox"
@@ -82,7 +86,7 @@ pattern = "www.mmdbkk.com/sigil/api*"
 zone_name = "mmdbkk.com"
 
 [[routes]]
-pattern = "sigil.mmdbkk.com/*"
+pattern = "sigil.mmdbkk.com/a/*"
 zone_name = "mmdbkk.com"
 
 [[routes]]

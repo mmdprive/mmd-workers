@@ -1,4 +1,5 @@
 import { isAuthorized, readInternalToken } from "./lib/auth";
+import { handleInternalRoutes } from "./internal-routes";
 import {
   buildImmigrationLinkContext,
   canReadAirtable,
@@ -6887,6 +6888,9 @@ export default {
 
     try {
       const url = new URL(request.url);
+
+      const internalRouteRes = await handleInternalRoutes(request, env);
+      if (internalRouteRes) return internalRouteRes;
 
       if (
         request.method === "OPTIONS" &&
