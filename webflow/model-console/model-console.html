@@ -1,0 +1,415 @@
+<link rel="stylesheet" href="/ui/model-console/model-console.css">
+
+<style>
+  #mmd-model-console .mmdmcx-hero-img {
+    object-position: 64% 42% !important;
+  }
+
+  @media (max-width: 700px) {
+    #mmd-model-console .mmdmcx-hero-img {
+      object-position: 66% 44% !important;
+    }
+  }
+</style>
+
+<section
+  id="mmd-model-console"
+  class="mmdmcx"
+  data-events-base="/events-worker"
+  data-realtime-base="/realtime-worker"
+  data-admin-base="/admin-worker"
+  data-payments-base="/payments-worker"
+  data-session-id="sess_preview"
+  data-model-id="model_preview"
+>
+  <div class="mmdmcx-stage" aria-hidden="true">
+    <span class="mmdmcx-glow mmdmcx-glow--gold"></span>
+    <span class="mmdmcx-glow mmdmcx-glow--amber"></span>
+    <span class="mmdmcx-gridline"></span>
+  </div>
+
+  <div class="mmdmcx-shell">
+    <header class="mmdmcx-hero">
+      <div class="mmdmcx-hero-copy">
+        <div class="mmdmcx-toprow">
+          <div class="mmdmcx-brand">
+            <img
+              class="mmdmcx-logo"
+              src="https://cdn.prod.website-files.com/68f879d546d2f4e2ab186e90/69e9d25e264799b7c277e309_MMD%20SIGIL%20Trans%20no%20SIGIL.png"
+              alt="MMD SIGIL logo"
+            >
+            <div class="mmdmcx-topchips">
+              <span class="mmdmcx-topchip">MODEL CONSOLE</span>
+              <span class="mmdmcx-topchip">MMD ASSISTANT</span>
+            </div>
+          </div>
+          <button class="mmdmcx-live-indicator" type="button" data-header-live aria-pressed="false">LIVE OFF</button>
+        </div>
+
+        <p class="mmdmcx-kicker">MMD . SĪGIL</p>
+        <h1 class="mmdmcx-title">
+          <span class="mmdmcx-title-main">Model Console</span>
+          <span class="mmdmcx-title-sub">พร้อมแล้วค่อยขยับ</span>
+        </h1>
+        <p class="mmdmcx-subtitle">
+          ดูสถานะงาน รับอัปเดต แชร์ตำแหน่ง ส่ง ETA และจัดการโปรไฟล์ได้จากหน้านี้
+        </p>
+
+        <div class="mmdmcx-hero-meta">
+          <article class="mmdmcx-mini-stat">
+            <span>Session</span>
+            <strong data-session-id-label>sess_preview</strong>
+          </article>
+          <article class="mmdmcx-mini-stat">
+            <span>Status</span>
+            <strong data-session-status>assigned</strong>
+          </article>
+          <article class="mmdmcx-mini-stat">
+            <span>ETA</span>
+            <strong data-eta-display>รออัปเดต</strong>
+          </article>
+        </div>
+      </div>
+
+      <figure class="mmdmcx-hero-media">
+        <img
+          class="mmdmcx-hero-img"
+          src="https://cdn.prod.website-files.com/68f879d546d2f4e2ab186e90/69f3ca84ef0a30fb6c797451_Tart%20Console%20Model.webp"
+          alt="Model Console hero"
+        >
+      </figure>
+    </header>
+
+    <div class="mmdmcx-dashboard">
+      <section class="mmdmcx-card mmdmcx-command">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">Current Command</p>
+            <h2 class="mmdmcx-heading">Current Command</h2>
+          </div>
+          <span class="mmdmcx-pill" data-command-label>Stand by</span>
+        </div>
+
+        <p class="mmdmcx-copy">
+          Route actions stay visible here first, then can be bridged safely to the right worker surface later.
+        </p>
+
+        <div class="mmdmcx-button-row">
+          <button class="mmdmcx-button mmdmcx-button--primary" type="button" data-action-start-route>START ROUTE</button>
+          <button class="mmdmcx-button mmdmcx-button--ghost" type="button" data-action-arrived>ARRIVED</button>
+        </div>
+
+        <div class="mmdmcx-inline-meta">
+          <span>Last update</span>
+          <strong data-last-update>ยังไม่มี</strong>
+        </div>
+      </section>
+
+      <section class="mmdmcx-card mmdmcx-strip">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">Status Strip</p>
+            <h2 class="mmdmcx-heading">Status Strip</h2>
+          </div>
+        </div>
+
+        <div class="mmdmcx-stat-strip">
+          <article class="mmdmcx-stat">
+            <span>Availability</span>
+            <strong data-availability>พร้อมรับคำสั่ง</strong>
+          </article>
+          <article class="mmdmcx-stat">
+            <span>Visibility</span>
+            <strong data-visibility>Visible</strong>
+          </article>
+          <article class="mmdmcx-stat">
+            <span>GPS</span>
+            <strong data-gps>LIVE OFF</strong>
+          </article>
+          <article class="mmdmcx-stat">
+            <span>Payout</span>
+            <strong data-payout>Awaiting release</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="mmdmcx-card mmdmcx-priority">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">Priority Steps</p>
+            <h2 class="mmdmcx-heading">Priority Steps</h2>
+          </div>
+        </div>
+
+        <div class="mmdmcx-step-list">
+          <article class="mmdmcx-step">
+            <div class="mmdmcx-step-head">
+              <p class="mmdmcx-step-tag">STEP 1</p>
+              <h3 class="mmdmcx-step-title">เริ่มเดินทาง</h3>
+            </div>
+            <p class="mmdmcx-step-copy">เปิด route state และเตรียมสถานะการเดินทางให้พร้อมก่อนออกตัว</p>
+            <button class="mmdmcx-button mmdmcx-button--primary" type="button" data-action-start-route>START ROUTE</button>
+          </article>
+
+          <article class="mmdmcx-step">
+            <div class="mmdmcx-step-head">
+              <p class="mmdmcx-step-tag">STEP 2</p>
+              <h3 class="mmdmcx-step-title">Live location</h3>
+            </div>
+            <p class="mmdmcx-step-copy">เปิดหรือพักการแชร์ตำแหน่งโดยไม่แตะสัญญา worker จริง</p>
+            <div class="mmdmcx-button-row">
+              <button class="mmdmcx-button mmdmcx-button--ghost" type="button" data-action-live-on>Start Live Location</button>
+              <button class="mmdmcx-button mmdmcx-button--ghost" type="button" data-action-live-off>Stop Sharing</button>
+            </div>
+          </article>
+
+          <article class="mmdmcx-step">
+            <div class="mmdmcx-step-head">
+              <p class="mmdmcx-step-tag">STEP 3</p>
+              <h3 class="mmdmcx-step-title">ส่ง ETA</h3>
+            </div>
+            <label class="mmdmcx-field">
+              <span>Current ETA</span>
+              <input class="mmdmcx-input" type="text" maxlength="80" data-eta-input placeholder="18 min / entering lobby / traffic light">
+            </label>
+            <div class="mmdmcx-button-row">
+              <button class="mmdmcx-button mmdmcx-button--primary" type="button" data-action-send-eta>Send current ETA</button>
+              <button class="mmdmcx-button mmdmcx-button--ghost" type="button" data-action-notify-delay>Notify delay</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="mmdmcx-card mmdmcx-brief">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">Session Brief</p>
+            <h2 class="mmdmcx-heading">Session Brief</h2>
+          </div>
+        </div>
+
+        <div class="mmdmcx-detail-grid">
+          <article class="mmdmcx-detail">
+            <span>Session</span>
+            <strong data-brief-session>sess_preview</strong>
+          </article>
+          <article class="mmdmcx-detail">
+            <span>Status</span>
+            <strong data-brief-status>assigned</strong>
+          </article>
+          <article class="mmdmcx-detail">
+            <span>Date</span>
+            <strong data-brief-date>03 May 2026</strong>
+          </article>
+          <article class="mmdmcx-detail">
+            <span>Time</span>
+            <strong data-brief-time>20:30</strong>
+          </article>
+          <article class="mmdmcx-detail">
+            <span>Location</span>
+            <strong data-brief-location>Sukhumvit / Private Lounge</strong>
+          </article>
+          <article class="mmdmcx-detail">
+            <span>Travel</span>
+            <strong data-brief-travel>Awaiting route</strong>
+          </article>
+          <article class="mmdmcx-detail">
+            <span>Payment</span>
+            <strong data-brief-payment>Payment gate pending</strong>
+          </article>
+          <article class="mmdmcx-detail">
+            <span>Open Map</span>
+            <a class="mmdmcx-link-button" href="https://maps.google.com/?q=Sukhumvit%20Private%20Lounge" target="_blank" rel="noreferrer" data-open-map>Open Map</a>
+          </article>
+        </div>
+      </section>
+
+      <section class="mmdmcx-card mmdmcx-assistant">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">MMD Assistant / Client Read</p>
+            <h2 class="mmdmcx-heading">อ่านลูกค้าก่อน</h2>
+          </div>
+          <button class="mmdmcx-button mmdmcx-button--ghost" type="button" data-action-view-brief>View Full Brief</button>
+        </div>
+
+        <div class="mmdmcx-note-stack">
+          <article class="mmdmcx-note">
+            <span>Client read</span>
+            <strong>โทนสุภาพ นุ่ม แต่มั่นใจ</strong>
+          </article>
+          <article class="mmdmcx-note">
+            <span>Arrival cue</span>
+            <strong>ส่ง ETA ก่อนเข้าล็อบบี้ทุกครั้ง</strong>
+          </article>
+          <article class="mmdmcx-note">
+            <span>Assistant note</span>
+            <strong>ให้ตอบสั้น กระชับ และอัปเดตตามจริงเท่านั้น</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="mmdmcx-card mmdmcx-timeline">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">Session Timeline</p>
+            <h2 class="mmdmcx-heading">Session Timeline</h2>
+          </div>
+        </div>
+
+        <div class="mmdmcx-timeline-grid">
+          <button class="mmdmcx-timeline-button" type="button" data-timeline-action="met">Met</button>
+          <button class="mmdmcx-timeline-button" type="button" data-timeline-action="started">Started</button>
+          <button class="mmdmcx-timeline-button" type="button" data-timeline-action="finished">Finished</button>
+          <button class="mmdmcx-timeline-button" type="button" data-timeline-action="separated">Separated</button>
+        </div>
+      </section>
+
+      <section class="mmdmcx-card mmdmcx-work">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">Work Profile</p>
+            <h2 class="mmdmcx-heading">Work Profile</h2>
+          </div>
+        </div>
+
+        <div class="mmdmcx-tabs" role="tablist" aria-label="Work profile tabs">
+          <button class="mmdmcx-tab is-active" type="button" role="tab" aria-selected="true" data-tab-target="public">Public</button>
+          <button class="mmdmcx-tab" type="button" role="tab" aria-selected="false" data-tab-target="private">Private</button>
+        </div>
+
+        <div class="mmdmcx-panel-set">
+          <div class="mmdmcx-tab-panel" role="tabpanel" data-tab-panel="public">
+            <div class="mmdmcx-profile-grid">
+              <article class="mmdmcx-profile-card">
+                <span>Public Job</span>
+                <strong>งานมาตรฐาน 5 ชม.</strong>
+              </article>
+              <label class="mmdmcx-field">
+                <span>Public Minimum Rate</span>
+                <input class="mmdmcx-input" type="text" value="20,000 THB" data-rate-input="public_minimum_rate">
+              </label>
+              <label class="mmdmcx-field">
+                <span>Public Standard Rate</span>
+                <input class="mmdmcx-input" type="text" value="28,000 THB" data-rate-input="public_standard_rate">
+              </label>
+              <div class="mmdmcx-field">
+                <span>Travel Model / Extreme Model</span>
+                <div class="mmdmcx-chip-row">
+                  <button class="mmdmcx-chip is-active" type="button" data-chip-group="public_mode" data-chip-value="Travel Model" aria-pressed="true">Travel Model</button>
+                  <button class="mmdmcx-chip" type="button" data-chip-group="public_mode" data-chip-value="Extreme Model" aria-pressed="false">Extreme Model</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mmdmcx-tab-panel" role="tabpanel" data-tab-panel="private" hidden>
+            <div class="mmdmcx-profile-grid">
+              <article class="mmdmcx-profile-card">
+                <span>Private Job</span>
+                <strong>งานมาตรฐาน 2 ชม.</strong>
+              </article>
+              <div class="mmdmcx-field">
+                <span>รับงานมากกว่า 2–5 ชม. ไหม</span>
+                <div class="mmdmcx-chip-row">
+                  <button class="mmdmcx-chip is-active" type="button" data-chip-group="private_hours" data-chip-value="รับ" data-chip-single="true" aria-pressed="true">รับ</button>
+                  <button class="mmdmcx-chip" type="button" data-chip-group="private_hours" data-chip-value="ไม่รับ" data-chip-single="true" aria-pressed="false">ไม่รับ</button>
+                </div>
+              </div>
+              <label class="mmdmcx-field">
+                <span>PN Model Minimum Rate</span>
+                <input class="mmdmcx-input" type="text" value="35,000 THB" data-rate-input="pn_minimum_rate">
+              </label>
+              <label class="mmdmcx-field">
+                <span>PN Model Standard Rate</span>
+                <input class="mmdmcx-input" type="text" value="45,000 THB" data-rate-input="pn_standard_rate">
+              </label>
+              <label class="mmdmcx-field">
+                <span>VIP Model Minimum Rate</span>
+                <input class="mmdmcx-input" type="text" value="55,000 THB" data-rate-input="vip_minimum_rate">
+              </label>
+              <label class="mmdmcx-field">
+                <span>VIP Model Standard Rate</span>
+                <input class="mmdmcx-input" type="text" value="70,000 THB" data-rate-input="vip_standard_rate">
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mmdmcx-card mmdmcx-budget">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">Client Budget</p>
+            <h2 class="mmdmcx-heading">Client Budget</h2>
+          </div>
+        </div>
+
+        <div class="mmdmcx-budget-grid">
+          <button class="mmdmcx-budget-button" type="button" data-budget-level="Level 1 ปกติ">Level 1 ปกติ</button>
+          <button class="mmdmcx-budget-button is-active" type="button" data-budget-level="Level 2 กลาง">Level 2 กลาง</button>
+          <button class="mmdmcx-budget-button" type="button" data-budget-level="Level 3 สูง">Level 3 สูง</button>
+          <button class="mmdmcx-budget-button" type="button" data-budget-level="Level 4 สูงสุด">Level 4 สูงสุด</button>
+        </div>
+
+        <div class="mmdmcx-save-row">
+          <div class="mmdmcx-inline-meta">
+            <span>Save state</span>
+            <strong data-save-state>saved</strong>
+          </div>
+          <button class="mmdmcx-button mmdmcx-button--primary" type="button" data-action-save-profile>Save Work Profile</button>
+        </div>
+      </section>
+
+      <section class="mmdmcx-card mmdmcx-tools">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">Profile / Payout / Compcard</p>
+            <h2 class="mmdmcx-heading">Profile / Payout / Compcard</h2>
+          </div>
+        </div>
+
+        <div class="mmdmcx-tool-grid">
+          <button class="mmdmcx-button mmdmcx-button--ghost" type="button" data-utility-action="profile">Update Profile</button>
+          <button class="mmdmcx-button mmdmcx-button--ghost" type="button" data-utility-action="payout">Update Payout</button>
+          <button class="mmdmcx-button mmdmcx-button--ghost" type="button" data-utility-action="compcard">Generate Compcard</button>
+        </div>
+      </section>
+
+      <section class="mmdmcx-card mmdmcx-intel">
+        <div class="mmdmcx-card-head">
+          <div>
+            <p class="mmdmcx-label">Client Intel</p>
+            <h2 class="mmdmcx-heading">Client Intel</h2>
+          </div>
+        </div>
+
+        <div class="mmdmcx-intel-grid">
+          <article class="mmdmcx-intel-card">
+            <span>Suggested tone</span>
+            <strong data-intel-tone>Warm, calm, direct</strong>
+          </article>
+          <article class="mmdmcx-intel-card">
+            <span>Caution</span>
+            <strong data-intel-caution>Confirm lobby timing before stepping into the venue</strong>
+          </article>
+          <article class="mmdmcx-intel-card">
+            <span>Payment gate</span>
+            <strong data-intel-payment>payments-worker remains the gate for payout state</strong>
+          </article>
+          <article class="mmdmcx-intel-card">
+            <span>Finish flow</span>
+            <strong data-intel-finish>Finish in console, then hand off to review-safe payout flow</strong>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <footer class="mmdmcx-footer">
+      <span class="mmdmcx-footer-dot" aria-hidden="true"></span>
+      <span data-surface-note>Webflow surface ready. Signed reference uses `t` when present.</span>
+    </footer>
+  </div>
+</section>
+
+<script src="/ui/model-console/model-console.js"></script>
