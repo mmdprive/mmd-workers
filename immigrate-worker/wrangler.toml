@@ -24,72 +24,11 @@ ADMIN_WORKER_BASE_URL = "https://admin-worker.malemodel-bkk.workers.dev"
 # wrangler secret put INTERNAL_TOKEN
 # wrangler secret put AIRTABLE_API_KEY
 
-# SIGIL root is owned by admin-worker. This Worker only owns static admin assets.
-# Do not use sigil.mmdbkk.com/* here, or Cloudflare will reject deploy with route conflict 10020.
+# Route ownership rule:
+# - admin-worker owns internal/admin pages and SIGIL host/root routes.
+# - immigrate-worker only serves static operator assets under /a/*.
+# Do not add mmdbkk.com/internal/admin* or sigil.mmdbkk.com/* here, or Cloudflare
+# may reject deploy with route conflict 10020.
 [[routes]]
 pattern = "sigil.mmdbkk.com/a/*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "mmdbkk.com/internal/admin/control-room*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "www.mmdbkk.com/internal/admin/control-room*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "mmdbkk.com/internal/admin/create-session*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "www.mmdbkk.com/internal/admin/create-session*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "mmdbkk.com/internal/admin/jobs/create-session*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "www.mmdbkk.com/internal/admin/jobs/create-session*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "mmdbkk.com/internal/jobs*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "www.mmdbkk.com/internal/jobs*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "mmdbkk.com/v1/admin/*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "www.mmdbkk.com/v1/admin/*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "mmdbkk.com/member/api/invite*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "www.mmdbkk.com/member/api/invite*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "mmdbkk.com/member/api/renewal*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "www.mmdbkk.com/member/api/renewal*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "mmdbkk.com/member/api/jobs*"
-zone_name = "mmdbkk.com"
-
-[[routes]]
-pattern = "www.mmdbkk.com/member/api/jobs*"
 zone_name = "mmdbkk.com"
