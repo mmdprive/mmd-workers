@@ -1,0 +1,168 @@
+/*
+  MMD SIGIL Access - LV12 Thai + Event Immersion Layer
+  Load after v2 + v10 + lv11.
+  Purpose: compact dock, bilingual TH/EN layer copy, signal rows, event-state evolution.
+*/
+
+.sigil-lv11 {
+  margin-top: 8px !important;
+  grid-template-columns: minmax(0, 1.02fr) minmax(380px, 0.98fr) !important;
+}
+
+.sigil-lv11-head {
+  padding: 15px 20px 12px !important;
+}
+
+.sigil-lv11-head h3 {
+  letter-spacing: 0.28em !important;
+}
+
+.sigil-layers {
+  padding: 14px 14px 12px !important;
+}
+
+.sigil-layer {
+  min-height: 88px !important;
+  padding: 12px 13px 10px !important;
+}
+
+.sigil-layer::before {
+  left: 13px !important;
+  top: 12px !important;
+  width: 30px !important;
+  height: 30px !important;
+}
+
+.sigil-layer strong {
+  margin-left: 42px !important;
+  font-size: 16px !important;
+}
+
+.sigil-layer h4 {
+  margin-top: 20px !important;
+  font-size: 11px !important;
+  letter-spacing: 0.14em !important;
+}
+
+.sigil-layer p {
+  margin-top: 7px !important;
+  font-size: 10px !important;
+  letter-spacing: 0.12em !important;
+}
+
+.sigil-rec-body {
+  padding: 16px 20px 18px !important;
+}
+
+.sigil-rec-body > p {
+  display: none !important;
+}
+
+.sigil-signal-table {
+  display: grid !important;
+  gap: 9px !important;
+}
+
+.sigil-signal-row {
+  display: grid !important;
+  grid-template-columns: minmax(130px, 0.9fr) 1fr auto !important;
+  gap: 14px !important;
+  align-items: center !important;
+  padding: 8px 0 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+}
+
+.sigil-signal-row:last-child {
+  border-bottom: 0 !important;
+}
+
+.sigil-signal-row span:first-child {
+  color: rgba(244,211,123,0.62) !important;
+  font: 700 10px/1.35 var(--mmd-mono) !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+}
+
+.sigil-signal-row strong {
+  color: rgba(239,232,220,0.82) !important;
+  font: 650 13px/1.35 var(--mmd-font) !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+.sigil-signal-row i {
+  width: 7px !important;
+  height: 7px !important;
+  display: inline-block !important;
+  border-radius: 999px !important;
+  background: rgba(244,211,123,0.88) !important;
+  box-shadow: 0 0 14px rgba(244,211,123,0.72) !important;
+}
+
+.sigil-rec-protocol {
+  margin-top: 13px !important;
+  padding-top: 13px !important;
+}
+
+.sigil-rec-protocol strong {
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+}
+
+.sigil-chain-state {
+  margin-top: 13px !important;
+  flex-wrap: wrap !important;
+  row-gap: 8px !important;
+}
+
+.sigil-lv12-event-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 13px !important;
+  padding: 7px 10px !important;
+  border: 1px solid rgba(244,211,123,0.22) !important;
+  background: rgba(201,155,67,0.045) !important;
+  color: rgba(244,211,123,0.72) !important;
+  font: 700 10px/1 var(--mmd-mono) !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+}
+
+.sigil-lv12-event-chip i {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 999px !important;
+  background: var(--mmd-gold-2) !important;
+  box-shadow: 0 0 12px rgba(244,211,123,0.7) !important;
+}
+
+.sigil-os[data-lv12-event="analysis"] .sigil-signal-row[data-signal="read"] strong,
+.sigil-os[data-lv12-event="session"] .sigil-signal-row[data-signal="session"] strong,
+.sigil-os[data-lv12-event="payment"] .sigil-signal-row[data-signal="payment"] strong,
+.sigil-os[data-lv12-event="route"] .sigil-signal-row[data-signal="route"] strong {
+  color: var(--mmd-gold-2) !important;
+}
+
+.sigil-os[data-lv12-event="analysis"] .sigil-layer[data-layer="private"]::before,
+.sigil-os[data-lv12-event="session"] .sigil-layer[data-layer="review"]::before,
+.sigil-os[data-lv12-event="payment"] .sigil-layer[data-layer="review"]::before,
+.sigil-os[data-lv12-event="route"] .sigil-layer[data-layer="inner"]::before {
+  border-color: rgba(244,211,123,0.95) !important;
+  box-shadow: 0 0 26px rgba(244,211,123,0.32) !important;
+  animation: lv11Pulse 2.2s ease-in-out infinite;
+}
+
+@media (min-width: 1321px) and (max-height: 930px) {
+  .sigil-lv11 { margin-top: 6px !important; }
+  .sigil-layer { min-height: 76px !important; }
+  .sigil-layer h4 { margin-top: 16px !important; }
+  .sigil-signal-row { padding: 6px 0 !important; }
+  .sigil-rec-protocol { margin-top: 10px !important; padding-top: 10px !important; }
+  .sigil-chain-state { display: none !important; }
+}
+
+@media (max-width: 900px) {
+  .sigil-lv11 { grid-template-columns: 1fr !important; }
+  .sigil-signal-row { grid-template-columns: 1fr !important; gap: 6px !important; }
+}
