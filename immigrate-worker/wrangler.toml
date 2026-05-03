@@ -20,15 +20,9 @@ PUBLIC_WEB_BASE_URL = "https://www.mmdbkk.com"
 PUBLIC_ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://sigil.mmdbkk.com,https://mmdprive.com,https://www.mmdprive.com,https://mmdprive.webflow.io"
 ADMIN_WORKER_BASE_URL = "https://admin-worker.malemodel-bkk.workers.dev"
 
-# Set via secrets:
+# Secrets:
 # wrangler secret put INTERNAL_TOKEN
 # wrangler secret put AIRTABLE_API_KEY
 
-# Route ownership rule:
-# - admin-worker owns internal/admin pages and SIGIL host/root routes.
-# - immigrate-worker only serves static operator assets under /a/*.
-# Do not add mmdbkk.com/internal/admin* or sigil.mmdbkk.com/* here, or Cloudflare
-# may reject deploy with route conflict 10020.
-[[routes]]
-pattern = "sigil.mmdbkk.com/a/*"
-zone_name = "mmdbkk.com"
+# No custom routes here. admin-worker owns internal admin and SIGIL host routes.
+# This worker is available at workers.dev and can serve static assets there.
