@@ -11,6 +11,12 @@ export default {
       colors: {
         mmd: {
           gold: "#d6ab5c",
+          monitorGold: "#f2c879",
+          ivory: "#fff8ec",
+          muted: "#d8cabf",
+          error: "#ff6b6b",
+          warning: "#ffd166",
+          live: "#4ade80",
           bg: "#070707",
           panel: "#0b0b0b",
         },

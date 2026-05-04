@@ -31,6 +31,23 @@ wrangler secret put INTERNAL_TOKEN
 wrangler dev
 ```
 
+## Validation
+
+From the repository root:
+
+```bash
+npm run check
+npm run smoke
+npm test
+```
+
+The smoke harness preserves the verified media-submission contract:
+provider normalization is `cloudinary` or `none`; submission mode is
+`portfolio_link` or `telegram_pending`; `link_provided` and
+`telegram_pending` take precedence over `upload_failed`; failed uploads
+without fallback stay `upload_failed`; partial uploads stay
+`partial_uploaded`; Telegram fallback creates a pending media note.
+
 ## Example request
 
 ```bash

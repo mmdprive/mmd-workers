@@ -2,6 +2,9 @@
   "name": "mmd-workers",
   "private": true,
   "scripts": {
+    "check": "node --check chat-worker/src/index.js && node --check scripts/smoke-chat-worker.js",
+    "smoke": "node scripts/smoke-chat-worker.js",
+    "test": "npm run check && npm run smoke",
     "deploy:payments": "wrangler deploy --config workers/payments-worker/wrangler.toml",
     "deploy:admin": "wrangler deploy --config workers/admin-worker/wrangler.toml",
     "deploy:events": "wrangler deploy --config workers/events-worker/wrangler.toml",
