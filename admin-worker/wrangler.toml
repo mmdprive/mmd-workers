@@ -12,6 +12,7 @@ ALLOWED_ORIGINS = "https://mmdbkk.com,https://www.mmdbkk.com,https://mmdprive.co
 
 # Base URLs (LOCK)
 PAYMENTS_BASE_URL = "https://payments-worker.malemodel-bkk.workers.dev"
+IMMIGRATE_WORKER_BASE_URL = "https://immigrate-worker.malemodel-bkk.workers.dev"
 TELEGRAM_INTERNAL_SEND_URL = "https://telegram-worker.malemodel-bkk.workers.dev/telegram/internal/send"
 
 # Airtable
