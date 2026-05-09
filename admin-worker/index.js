@@ -28,6 +28,8 @@ import { demoLinksCreate, demoLinksGet } from "./src/routes/demo-links.js";
 
 const LOCK = "admin-worker-v2026-03-11-full";
 const AIRTABLE_API = "https://api.airtable.com/v0";
+const MODEL_PROMOTE_IMMIGRATION_ROUTE = "/sigil/admin/models/promote-immigration";
+const DEFAULT_IMMIGRATE_WORKER_BASE_URL = "https://immigrate-worker.malemodel-bkk.workers.dev";
 
 export default {
   async fetch(req, env) {
@@ -64,6 +66,10 @@ export default {
 
     if (method === "GET" && path === "/v1/demo-links/get") {
       return withCors(await demoLinksGet(req, env), cors);
+    }
+
+    if (path === MODEL_PROMOTE_IMMIGRATION_ROUTE) {
+      return withCors(await bridgeModelPromoteImmigration(req, env), cors);
     }
 
     // ------------------------------------------------------
@@ -553,6 +559,18 @@ function isConfirmKeyAuthed(req, env) {
   return Boolean(env.CONFIRM_KEY && ck && ck === env.CONFIRM_KEY);
 }
 
+function isModelPromotionBridgeAuthed(req, env) {
+  const auth = req.headers.get("Authorization") || "";
+  const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
+  const internalToken = str(req.headers.get("X-Internal-Token") || "");
+  const confirmKey = str(req.headers.get("X-Confirm-Key") || "");
+
+  return Boolean(
+    (env.INTERNAL_TOKEN && (bearer === env.INTERNAL_TOKEN || internalToken === env.INTERNAL_TOKEN)) ||
+      (env.CONFIRM_KEY && confirmKey === env.CONFIRM_KEY)
+  );
+}
+
 /* =========================
    JSON / utils
 ========================= */
@@ -623,6 +641,47 @@ function numReq(value, field) {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) throw new Error(`invalid_${field}`);
   return n;
+}
+
+async function bridgeModelPromoteImmigration(req, env) {
+  if (!isModelPromotionBridgeAuthed(req, env)) {
+    return json({ ok: false, error: "unauthorized" }, 401);
+  }
+
+  const requestUrl = new URL(req.url);
+  const base = str(env.IMMIGRATE_WORKER_BASE_URL || DEFAULT_IMMIGRATE_WORKER_BASE_URL).replace(/\/+$/, "");
+  if (!base) return json({ ok: false, error: "missing_immigrate_worker_base_url" }, 500);
+
+  const target = new URL(`${base}${MODEL_PROMOTE_IMMIGRATION_ROUTE}`);
+  target.search = requestUrl.search;
+
+  const headers = new Headers();
+  for (const name of ["accept", "authorization", "content-type", "x-confirm-key", "x-internal-token"]) {
+    const value = req.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+
+  if (env.INTERNAL_TOKEN) {
+    headers.set("X-Internal-Token", env.INTERNAL_TOKEN);
+  }
+
+  try {
+    return await fetch(target.toString(), {
+      method: req.method,
+      headers,
+      body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body,
+      redirect: "manual",
+    });
+  } catch (e) {
+    return json(
+      {
+        ok: false,
+        error: "model_promotion_bridge_failed",
+        detail: String(e?.message || e),
+      },
+      502
+    );
+  }
 }
 
 function inferLayerFromTable(tableName) {
