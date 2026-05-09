@@ -4,6 +4,7 @@ import {
   renderCreateSessionPage,
   type InternalPageEnv,
 } from "./internal-pages";
+import { handleModelPromoteImmigration } from "./lib/model-promote-immigration";
 
 export interface InternalRoutesEnv extends InternalPageEnv {
   ADMIN_WORKER_BASE_URL?: string;
@@ -103,6 +104,10 @@ export async function handleInternalRoutes(request: Request, env: InternalRoutes
 
   const assetRes = await serveAsset(request, env);
   if (assetRes) return assetRes;
+
+  if (pathname === "/sigil/admin/models/promote-immigration") {
+    return handleModelPromoteImmigration(request, env);
+  }
 
   const apiRes = await proxyAdminApi(request, env);
   if (apiRes) return apiRes;
