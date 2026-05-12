@@ -73,6 +73,36 @@ Optional staging:
 
 `POST /v1/admin/models/stage-from-source` can create/upsert a draft `Models` record with `requires_per_approval=true` and `private_review_status=Needs Review`. This is a pre-canonical draft only; it does not confirm availability.
 
+## Pricing Review + Ad Context
+
+`POST /v1/admin/pricing/reviews/create` creates a safe pricing review from LINE OA rate/image inquiries.
+
+The endpoint builds:
+
+- member context from Clients, Members, Sessions, Jobs, Payments, Payout Evidence, and Console Inbox where available
+- ad context from safe payload, catalogue refs, `GWs...` / `EMs...` creative codes, and recent Console Inbox hints
+- a Telegram brief headed `[Pricing Review: Ad/Member Context]`
+
+It does not quote a final price, confirm availability, expose private notes, expose image URLs, or create/update Airtable `Models`.
+
+Approval and timeout endpoints:
+
+- `POST /v1/admin/pricing/reviews/approve`
+- `POST /v1/admin/pricing/review-timeout-check`
+
+Timeout behavior defaults to internal review only. `PRICING_TIMEOUT_SEND_TO_CUSTOMER=false` must remain the default. If Per/Ewvon has not responded after `PRICING_TIMEOUT_MINUTES`, the worker may calculate an internal provisional range and notify Telegram, but it does not send the range to the customer unless explicitly enabled and guardrails pass.
+
+Required/supported config:
+
+- `PRICING_TIMEOUT_MINUTES=10`
+- `PRICING_TIMEOUT_SEND_TO_CUSTOMER=false`
+- `LINE_WEBHOOK_DEBUG=false`
+- `PRICING_REVIEW_TELEGRAM_PER_ID`
+- `PRICING_REVIEW_TELEGRAM_EWVON_ID`
+- `TG_THREAD_PRICING_REVIEW`
+
+Related architecture note: `docs/architecture/AD_CONTEXT_LEDGER.md`.
+
 ## Example
 
 ```bash

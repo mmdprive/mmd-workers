@@ -9,6 +9,17 @@ const BOOKING_SIGNAL_RE =
   /(จอง|book|booking|คิว|นัด|reserve|เรียก|รับงาน|ยังรับ|ว่าง|available|availability|ไปได้|เช็คคิว|เช็กคิว|เช็คว่าง|เช็กว่าง)/i;
 const TIMING_SIGNAL_RE = new RegExp(`(วันนี้|คืนนี้|พรุ่งนี้|วันที่|เวลา|\\d{1,2}[:.]\\d{2}|\\d{1,2}\\s*(?:${THAI_MONTHS_PATTERN}))`, "i");
 const LOCATION_SIGNAL_RE = /(โซน|แถว|ที่|ห้วยขวาง|นนท์|นอนท์|พระราม|สุขุมวิท|ลาดพร้าว|สาทร|สีลม|อโศก|ทองหล่อ|เอกมัย|รัชดา|อารีย์|บางนา|ปิ่นเกล้า|บางกะปิ|เชียงใหม่|ภูเก็ต|พัทยา)/i;
+const FAQ_REPLY_INTENTS = new Set([
+  "pricing_review",
+  "ask_where_to_get_rate",
+  "image_rate_inquiry",
+  "image_only_model_inquiry",
+  "package_difference",
+  "upgrade_question",
+  "membership_fee_reason",
+  "model_photo_review_question",
+  "contact_admin",
+]);
 const STOP_MODEL_WORDS = new Set([
   "วันที่",
   "เวลา",
@@ -66,6 +77,15 @@ function verifyLineSignature(rawBody, signature, secret) {
 function toTextMessage(event) {
   if (event?.type !== "message" || event?.message?.type !== "text") return "";
   return String(event.message.text || "").trim();
+}
+
+function isImageMessage(event) {
+  return event?.type === "message" && event?.message?.type === "image";
+}
+
+function hasPriorImageContext(event) {
+  const ref = event?.pricing_context || event?.context || event?.source_context || {};
+  return Boolean(ref?.image_message_id || ref?.last_image_message_id || ref?.image_present);
 }
 
 function hasClientTag(text) {
@@ -171,6 +191,37 @@ function looksLikeSpecificModelRequest(text) {
   if (!normalized) return false;
   const hasCandidate = Boolean(extractCandidateName(text));
   return hasCandidate && (BOOKING_SIGNAL_RE.test(text) || TIMING_SIGNAL_RE.test(text) || LOCATION_SIGNAL_RE.test(text));
+}
+
+function inferFaqIntent(text) {
+  const normalized = String(text || "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+
+  if (/อัปเกรด|อัพเกรด|upgrade/i.test(normalized)) return "upgrade_question";
+  if (
+    /(standard|สแตนดาร์ด).{0,40}(premium|พรีเมียม)|(premium|พรีเมียม).{0,40}(standard|สแตนดาร์ด)|ต่างจาก|ต่างกัน/i.test(
+      normalized,
+    )
+  ) {
+    return "package_difference";
+  }
+  if (/ทำไม.{0,20}(ค่าสมาชิก|เสียค่าสมาชิก|สมัครสมาชิก)|ค่าสมาชิก.{0,30}(ทำไม|เพื่ออะไร)/i.test(normalized)) {
+    return "membership_fee_reason";
+  }
+  if (/(รูปตัวอย่าง|ตัวอย่างนายแบบ|ดูรูป|รูปนายแบบ|รีวิว|review|reviews)/i.test(normalized)) {
+    return "model_photo_review_question";
+  }
+  if (/(คุยกับ|ติดต่อ|ขอคุย).{0,20}(แอดมิน|admin|mmd|per|เปอร์)|อยากคุยกับ\s*mmd/i.test(normalized)) {
+    return "contact_admin";
+  }
+  if (/(สอบถามเรทได้ที่ไหน|เรทได้ที่ไหน|ถามเรท|ขอเรท|ดูเรท|เช็คเรท|เช็กเรท)/i.test(normalized)) {
+    return "ask_where_to_get_rate";
+  }
+  if (/(ครั้งละ|สอบถามเรท|สอบถามราคา|เช็กราคา|เช็คราคา|ราคา|เรท|rate|price|กี่บาท|เท่าไร|เท่าไหร่|แพ็กเกจเท่าไร|แพคเกจเท่าไร|package price|แพงไหม|สูงไหม|ส่งไหม|รับไหม)/i.test(normalized)) {
+    return "pricing_review";
+  }
+
+  return "";
 }
 
 function modelField(model, keys) {
@@ -296,12 +347,19 @@ function findRequestedModel(text, models) {
 
 function inferIntent(text, event) {
   const normalized = String(text || "").toLowerCase();
+  if (isImageMessage(event)) return "image_only_model_inquiry";
   if (!normalized) {
     if (event?.type === "follow") return "new_follow";
     if (event?.type === "postback") return "postback";
     return "line_event";
   }
 
+  const faqIntent = inferFaqIntent(text);
+  if (faqIntent) {
+    return hasPriorImageContext(event) && (faqIntent === "pricing_review" || faqIntent === "ask_where_to_get_rate")
+      ? "image_rate_inquiry"
+      : faqIntent;
+  }
   if (looksLikeSpecificModelRequest(text)) return "model_availability";
   if (/(จอง|book|booking|คิว|นัด|reserve)/i.test(normalized)) return "create_session";
   if (/(สมัคร|member|สมาชิก|renew|ต่ออายุ|upgrade)/i.test(normalized)) return "membership";
@@ -382,6 +440,7 @@ function buildAirtableRecordWithProfile(event, profile) {
         parsed_time: booking.time_label || "",
         parsed_location: booking.location_area || "",
         specific_model_requested: Boolean(booking.model_name),
+        image_message_id: isImageMessage(event) ? String(event?.message?.id || "") : "",
         requested_model_name: booking.model_name || "",
         confidence_score: booking.model_name && (booking.date_label || booking.time_label || booking.location_area) ? 0.82 : 0.35,
         dedupe_status: "unresolved",
@@ -493,6 +552,176 @@ function buildModelSourceFallbackReply({ prefix, booking, resolution }) {
   return `รับทราบครับ ${prefix}ผมเห็นว่าต้องการเช็ก ${requestedName} เดี๋ยวส่งให้ Per ตรวจสอบจากประวัติ model-side ก่อนยืนยันนะครับ`;
 }
 
+function shouldAutoReplyForIntent(intent, text, event) {
+  if (event?.type === "follow") return true;
+  if (hasClientTag(text)) return true;
+  if (intent === "model_availability") return true;
+  if (FAQ_REPLY_INTENTS.has(intent)) return true;
+  return false;
+}
+
+function buildPricingReviewAcknowledgement(prefix = "") {
+  const greeting = prefix ? `ดีครับคุณ${prefix.trim()}` : "ดีครับ";
+  return `${greeting}
+
+สอบถามเรทกับผมตรงนี้ได้เลยครับ ผมรับเรื่องไว้แล้ว เดี๋ยวส่งให้ Per/Ewvon ตรวจสอบเรทและรายละเอียดที่เหมาะสมก่อนแจ้งกลับนะครับ
+
+ถ้าสะดวก แจ้งวัน เวลา โซน และระยะเวลาที่ต้องการไว้ได้เลยครับ จะช่วยประเมินให้ตรงขึ้นครับ`;
+}
+
+function buildAdContextPricingAcknowledgement() {
+  return `ดีครับ
+
+สอบถามเรทกับผมตรงนี้ได้เลยครับ ผมรับเรื่องไว้แล้ว เดี๋ยวตรวจเรทของรายการที่คุณสนใจให้ก่อนแจ้งกลับนะครับ
+
+ถ้าสะดวก แจ้งวัน เวลา โซน และระยะเวลาที่ต้องการไว้ได้เลยครับ จะช่วยประเมินให้ตรงขึ้นครับ`;
+}
+
+function buildCataloguePricingAcknowledgement() {
+  return `ดีครับ
+
+สอบถามเรทจาก Catalogue ที่คุณดูอยู่กับผมได้เลยครับ ผมรับเรื่องไว้แล้ว เดี๋ยวตรวจรายละเอียดให้ก่อนแจ้งกลับนะครับ
+
+ถ้าสะดวก แจ้งวัน เวลา โซน และระยะเวลาที่ต้องการไว้ได้เลยครับ`;
+}
+
+function buildImageOnlyAcknowledgement() {
+  return `ผมได้รับรูปแล้วครับ เดี๋ยวส่งให้ Per/Ewvon ตรวจสอบว่านายแบบในรูปตรงกับข้อมูลในระบบไหม พร้อมเรทล่าสุดและความพร้อมก่อนยืนยันนะครับ ถ้าสะดวก แจ้งวัน เวลา โซน และระยะเวลาที่ต้องการไว้ได้เลยครับ`;
+}
+
+function buildFaqReply(intent, prefix = "", context = {}) {
+  if (intent === "pricing_review" || intent === "ask_where_to_get_rate" || intent === "image_rate_inquiry") {
+    if (context.recommended_reply_strategy === "catalogue_ack") return buildCataloguePricingAcknowledgement();
+    if (context.recommended_reply_strategy === "ad_context_ack") return buildAdContextPricingAcknowledgement();
+    return buildPricingReviewAcknowledgement(prefix);
+  }
+  if (intent === "image_only_model_inquiry") return buildImageOnlyAcknowledgement();
+  if (intent === "package_difference") {
+    return `Standard กับ Premium จะต่างกันที่ระดับตัวเลือกและการดูแลครับ
+
+Standard เหมาะกับการเริ่มต้น มีตัวเลือกและข้อมูลเบื้องต้นในขอบเขตที่ง่ายขึ้นครับ
+
+Premium จะเหมาะกับคนที่ต้องการเลือกละเอียดขึ้น มีตัวเลือกและการดูแลมากขึ้นครับ
+
+รายละเอียดสุดท้ายขึ้นอยู่กับนโยบายปัจจุบันและการยืนยันจาก Per ก่อนสรุปแพ็กเกจครับ`;
+  }
+  if (intent === "upgrade_question") {
+    return `อัปเกรดจาก Standard เป็น Premium สามารถส่งให้ Per ตรวจสอบได้ครับ
+
+รบกวนแจ้งชื่อสมาชิกหรือแพ็กเกจปัจจุบันที่ใช้อยู่ได้เลยครับ แล้วผมจะส่งต่อให้ Per ตรวจสอบเงื่อนไขและส่วนต่างก่อนยืนยันครับ`;
+  }
+  if (intent === "membership_fee_reason") {
+    return `ค่าสมาชิกช่วยดูแลเรื่องการคัดกรองสิทธิ์ ความเป็นส่วนตัว การประสานงาน และคุณภาพของบริการครับ
+
+ค่าสมาชิกไม่ใช่การการันตีการจองงานทันทีนะครับ รายละเอียดงาน ราคา และความพร้อมของนายแบบจะต้องยืนยันจากระบบและ Per ก่อนทุกครั้งครับ`;
+  }
+  if (intent === "model_photo_review_question") {
+    return `รูปตัวอย่างนายแบบและรีวิวสามารถแนะนำให้ดูได้เฉพาะส่วนที่นโยบายและความเป็นส่วนตัวอนุญาตครับ
+
+แจ้งแนวที่ชอบหรือแพ็กเกจที่สนใจมาได้เลยครับ เดี๋ยวผมส่งให้ Per แนะนำทางที่เหมาะสมต่อครับ`;
+  }
+  if (intent === "contact_admin") {
+    return `รับทราบครับ ผมจะส่งคำถามนี้ให้ Per หรือ MMD ดูต่อครับ
+
+ถ้ามีรายละเอียดเพิ่มเติม เช่น แพ็กเกจที่สนใจ วันเวลา หรือแนวนายแบบที่ต้องการ ส่งเพิ่มไว้ในแชทนี้ได้เลยครับ`;
+  }
+  return "";
+}
+
+function parsePricingRequest(text) {
+  return {
+    date: extractDateLabel(text),
+    time: extractTimeLabel(text),
+    location: extractLocationLabel(text),
+    duration: String(text || "").match(/(\d+(?:\.\d+)?)\s*(?:ชม|ชั่วโมง|hr|hour|hours)/i)?.[1] || "",
+  };
+}
+
+function parseAdContextFromText(text = "") {
+  const source = String(text || "");
+  const creative = source.match(/\b((?:GWs|EMs)[A-Za-z0-9_-]*)\b/i)?.[1] || "";
+  const catalogue = source.match(/(?:catalogue|catalog|แคตตาล็อก|แคตาล็อก|แคต)\s*[:#-]?\s*([A-Za-z0-9_-]{2,40})/i)?.[1] || "";
+  const utmContent = source.match(/utm_content=([^&\s]+)/i)?.[1] || "";
+  const cardSet = source.match(/(?:card[_\s-]?set|ชุดการ์ด)\s*[:#-]?\s*([A-Za-z0-9_-]{2,40})/i)?.[1] || "";
+  const creativeType = /^GWs/i.test(creative) ? "GWs" : /^EMs/i.test(creative) ? "EMs" : "unknown";
+  const modelCandidates = Array.from(new Set([creative, utmContent].filter(Boolean)));
+  return {
+    ad_context_found: Boolean(creative || catalogue || utmContent || cardSet),
+    ad_context_unknown: !creative && !catalogue && !utmContent && !cardSet,
+    creative_code: creative || utmContent,
+    creative_code_type: creativeType,
+    catalogue_ref: catalogue,
+    card_set_id: cardSet,
+    model_candidates: modelCandidates,
+    confidence: creative || catalogue ? 0.75 : utmContent || cardSet ? 0.55 : 0,
+    source: creative || catalogue || utmContent || cardSet ? "line_payload_or_text" : "unknown",
+    needs_per_ad_match: !creative && !catalogue && !utmContent && !cardSet,
+  };
+}
+
+function choosePricingReplyStrategy(adContext = {}) {
+  if (adContext.catalogue_ref) return "catalogue_ack";
+  if (adContext.ad_context_found) return "ad_context_ack";
+  return "generic_pricing_ack";
+}
+
+async function createPricingReview(options, event, profile, intent) {
+  const base = String(options?.adminWorkerBaseUrl || "").replace(/\/+$/, "");
+  if (!base || (!options?.internalToken && !options?.confirmKey)) {
+    return { ok: false, skipped: true, error: "missing_admin_worker_auth" };
+  }
+
+  const text = toTextMessage(event);
+  const adContext = parseAdContextFromText(text);
+  const recommendedReplyStrategy = choosePricingReplyStrategy(adContext);
+  const headers = { "Content-Type": "application/json" };
+  if (options.internalToken) headers.Authorization = `Bearer ${options.internalToken}`;
+  if (options.confirmKey) headers["X-Confirm-Key"] = options.confirmKey;
+
+  const response = await fetch(`${base}/v1/admin/pricing/reviews/create`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      source: "line_oa",
+      intent,
+      line_user_id: getLineUserId(event),
+      line_display_name: String(profile?.displayName || ""),
+      client_name: String(profile?.displayName || ""),
+      message_text: text,
+      image_message_id: isImageMessage(event) ? String(event?.message?.id || "") : "",
+      parsed_request: parsePricingRequest(text),
+      ad_context_hint: adContext,
+      ad_context_unknown: Boolean(adContext.ad_context_unknown),
+      needs_per_ad_match: Boolean(adContext.needs_per_ad_match),
+      recommended_reply_strategy: recommendedReplyStrategy,
+      review_reason: "inbound_pricing_from_ad_or_unknown_creative",
+      raw_event_ref: String(event?.message?.id || event?.webhookEventId || ""),
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok && data?.ok !== false, status: response.status, ...data };
+}
+
+function logLineWebhookDebug(options, data) {
+  const enabled =
+    String(options?.lineWebhookDebug || "").toLowerCase() === "true" ||
+    String(options?.lineModelLookupDebug || "").toLowerCase() === "true";
+  if (!enabled) return;
+  console.log(
+    JSON.stringify({
+      event: "line_webhook_debug",
+      event_type: data.event_type || "",
+      intent: data.intent || "",
+      detected_intent: data.intent || "",
+      pricing_review_created: Boolean(data.pricing_review_created),
+      telegram_sent: Boolean(data.telegram_sent),
+      reply_sent: Boolean(data.reply_sent),
+      category: data.category || "",
+    }),
+  );
+}
+
 async function buildAutoReplyMessage(event, profile, options = {}) {
   const text = toTextMessage(event);
   const name = String(profile?.displayName || "").trim();
@@ -500,7 +729,8 @@ async function buildAutoReplyMessage(event, profile, options = {}) {
   const prefix = firstName ? `${firstName} ` : "";
   const intent = inferIntent(text, event);
 
-  if (!hasClientTag(text) && !looksLikeSpecificModelRequest(text) && event?.type !== "follow") {
+  if (!shouldAutoReplyForIntent(intent, text, event)) {
+    logLineWebhookDebug(options, { intent, reply_sent: false, category: "not_auto_reply_intent" });
     return "";
   }
 
@@ -540,6 +770,24 @@ async function buildAutoReplyMessage(event, profile, options = {}) {
     return reply;
   }
 
+  if (FAQ_REPLY_INTENTS.has(intent)) {
+    let pricingReview = null;
+    const adContext = parseAdContextFromText(text);
+    const recommendedReplyStrategy = choosePricingReplyStrategy(adContext);
+    if (intent === "pricing_review" || intent === "ask_where_to_get_rate" || intent === "image_rate_inquiry" || intent === "image_only_model_inquiry") {
+      pricingReview = options.createPricingReviewEnabled === false ? { ok: false, skipped: true, error: "deduped" } : await createPricingReview(options, event, profile, intent);
+    }
+    const reply = buildFaqReply(intent, prefix, { ...adContext, recommended_reply_strategy: recommendedReplyStrategy });
+    logLineWebhookDebug(options, {
+      intent,
+      reply_sent: Boolean(reply),
+      category: "faq_reply",
+      pricing_review_created: Boolean(pricingReview?.ok),
+      telegram_sent: Boolean(pricingReview?.telegram_sent),
+    });
+    return reply;
+  }
+
   if (intent === "create_session") {
     return `รับข้อความแล้วครับ ${prefix}เดี๋ยวทีมงานช่วยดูเรื่องจองคิวให้นะครับ`;
   }
@@ -547,7 +795,9 @@ async function buildAutoReplyMessage(event, profile, options = {}) {
     return `รับเรื่องสมาชิกแล้วครับ ${prefix}เดี๋ยวทีมงานตรวจสอบและตอบกลับให้นะครับ`;
   }
   if (intent === "pricing") {
-    return `รับคำถามเรื่องราคาแล้วครับ ${prefix}เดี๋ยวทีมงานส่งรายละเอียดกลับให้นะครับ`;
+    if (options.createPricingReviewEnabled !== false) await createPricingReview(options, event, profile, "pricing_review");
+    const adContext = parseAdContextFromText(text);
+    return buildFaqReply("pricing_review", prefix, { ...adContext, recommended_reply_strategy: choosePricingReplyStrategy(adContext) });
   }
   if (intent === "greeting") {
     return `สวัสดีครับ ${prefix}ต้องการสอบถามเรื่องจองงาน ราคา เช็กนายแบบ หรือสมาชิก พิมพ์มาได้เลยนะครับ`;
@@ -613,6 +863,7 @@ export async function handler(event) {
   const confirmKey = process.env.CONFIRM_KEY || "";
   const autoReplyEnabled = String(process.env.LINE_AUTO_REPLY_ENABLED || "false").toLowerCase() === "true";
   const lineModelLookupDebug = process.env.LINE_MODEL_LOOKUP_DEBUG || "";
+  const lineWebhookDebug = process.env.LINE_WEBHOOK_DEBUG || "";
 
   if (!lineChannelSecret || !airtableApiKey || !airtableBaseId) {
     return json(500, {
@@ -647,7 +898,9 @@ export async function handler(event) {
     const clientTagged = hasClientTag(messageText);
     const intent = inferIntent(messageText, item);
     const shouldFetchProfile =
-      (clientTagged || intent === "model_availability") && item?.source?.type === "user" && lineChannelAccessToken;
+      (clientTagged || intent === "model_availability" || FAQ_REPLY_INTENTS.has(intent)) &&
+      item?.source?.type === "user" &&
+      lineChannelAccessToken;
     const profile = shouldFetchProfile ? await fetchLineProfile(lineChannelAccessToken, lineUserId) : null;
     const record = await writeEventToAirtable({
       baseId: airtableBaseId,
@@ -661,6 +914,8 @@ export async function handler(event) {
       internalToken,
       confirmKey,
       lineModelLookupDebug,
+      lineWebhookDebug,
+      createPricingReviewEnabled: !record?.deduped,
     });
     const replied =
       !record?.deduped && autoReplyEnabled && replyText
@@ -686,3 +941,5 @@ export async function handler(event) {
     saved,
   });
 }
+
+export { buildFaqReply, choosePricingReplyStrategy, inferFaqIntent, inferIntent, parseAdContextFromText, shouldAutoReplyForIntent };
