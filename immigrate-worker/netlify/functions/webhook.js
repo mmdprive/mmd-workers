@@ -409,7 +409,7 @@ function buildAirtableRecordWithProfile(event, profile) {
   const migrationId = `line_${eventId}`;
   const flags = buildFlags(event, messageText);
   const intent = inferIntent(messageText, event);
-  const airtableIntent = PRICING_REVIEW_INTENTS.has(intent) ? "pricing" : intent;
+  const airtableIntent = PRICING_REVIEW_INTENTS.has(intent) ? "note_only" : intent;
   const messageType = getMessageType(event);
   const adminNote = buildAdminNote(event, messageText);
   const clientTagged = hasClientTag(messageText);

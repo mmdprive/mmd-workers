@@ -1625,7 +1625,7 @@ async function createPricingReview(env, body) {
       inbox_id: reviewId,
       created_by: "admin-worker-pricing-review",
       source: str(body.source || "line_oa"),
-      intent: "pricing",
+      intent: "note_only",
       member_name: displayName,
       line_user_id: lineUserId,
       line_id: str(body.raw_event_ref || imageMessageId),
@@ -1654,7 +1654,7 @@ async function createPricingReview(env, body) {
         final_price_thb: null,
         provisional_range: null,
       }),
-      status: "waiting_human",
+      status: "new",
     },
   });
 
