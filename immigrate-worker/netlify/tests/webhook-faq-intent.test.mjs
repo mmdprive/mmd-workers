@@ -5,7 +5,7 @@ import {
   inferFaqIntent,
   inferIntent,
   shouldAutoReplyForIntent,
-} from "./webhook.js";
+} from "../functions/webhook.js";
 
 const textEvent = (text) => ({
   type: "message",
