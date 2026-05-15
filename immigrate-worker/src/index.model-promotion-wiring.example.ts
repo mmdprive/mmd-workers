@@ -4,6 +4,7 @@
 import {
   maybeHandleModelPromoteImmigrationRoute,
 } from "./lib/model-promote-immigration-route";
+import type { Env } from "./types";
 
 // Inside fetch handler, after pathname is available:
 // const pathname = url.pathname;

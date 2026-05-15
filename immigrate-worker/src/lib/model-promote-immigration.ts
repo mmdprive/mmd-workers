@@ -76,20 +76,24 @@ function airtableTableUrl(env: Env, table: string): string {
   return `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(table)}`;
 }
 
+function envRecord(env: Env): Record<string, unknown> {
+  return env as unknown as Record<string, unknown>;
+}
+
 function modelDraftsTable(env: Env): string {
-  return toStr((env as Record<string, unknown>).AIRTABLE_TABLE_MODEL_DRAFTS) || "models/draft";
+  return toStr(envRecord(env).AIRTABLE_TABLE_MODEL_DRAFTS) || "models/draft";
 }
 
 function modelsTable(env: Env): string {
-  return toStr((env as Record<string, unknown>).AIRTABLE_TABLE_MODELS) || "tblcatsmzAT5nKqIn";
+  return toStr(envRecord(env).AIRTABLE_TABLE_MODELS) || "tblcatsmzAT5nKqIn";
 }
 
 function activityLogsTable(env: Env): string {
-  return toStr((env as Record<string, unknown>).AIRTABLE_TABLE_ACTIVITY_LOGS) || "tblbUWRoFL6OI6QMJ";
+  return toStr(envRecord(env).AIRTABLE_TABLE_ACTIVITY_LOGS) || "tblbUWRoFL6OI6QMJ";
 }
 
 function envField(env: Env, key: string, fallback: string): string {
-  return toStr((env as Record<string, unknown>)[key]) || fallback;
+  return toStr(envRecord(env)[key]) || fallback;
 }
 
 function escapeFormulaValue(value: string): string {

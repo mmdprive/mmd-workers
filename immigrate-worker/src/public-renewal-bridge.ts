@@ -13,6 +13,20 @@ function toNum(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+type UpstreamJson = {
+  ok?: boolean;
+  payment_url?: string;
+  url?: string;
+  data?: {
+    payment_url?: string;
+    url?: string;
+  };
+};
+
+function asUpstreamJson(value: unknown): UpstreamJson {
+  return value && typeof value === "object" ? (value as UpstreamJson) : {};
+}
+
 function publicCors(request: Request, env: Env): Headers {
   const headers = new Headers();
   const allowed = String(
@@ -79,7 +93,7 @@ async function intakeFallback(request: Request, env: Env, payload: Record<string
       headers: { "content-type": "application/json" },
       body: JSON.stringify(fallbackPayload),
     });
-    const data = await response.json().catch(() => null);
+    const data = asUpstreamJson(await response.json().catch(() => null));
     return {
       attempted: true,
       ok: response.ok && data?.ok !== false,
@@ -134,7 +148,7 @@ export async function handlePublicPointsTopup(request: Request, env: Env): Promi
     try {
       const upstream = await forwardJson(url, env, payload);
       if (!upstream) continue;
-      const data = await upstream.json().catch(() => null);
+      const data = asUpstreamJson(await upstream.json().catch(() => null));
       if (upstream.ok && data?.ok !== false) {
         return publicJson(request, env, {
           ok: true,
@@ -212,7 +226,7 @@ export async function handlePublicActivateVip(request: Request, env: Env): Promi
     try {
       const upstream = await forwardJson(url, env, payload);
       if (!upstream) continue;
-      const data = await upstream.json().catch(() => null);
+      const data = asUpstreamJson(await upstream.json().catch(() => null));
       if (upstream.ok && data?.ok !== false) {
         return publicJson(request, env, {
           ok: true,

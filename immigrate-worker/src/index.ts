@@ -1,4 +1,5 @@
 import { isAuthorized, readInternalToken } from "./lib/auth";
+import { handleModelPromoteImmigration } from "./lib/model-promote-immigration";
 import {
   buildImmigrationLinkContext,
   canReadAirtable,
@@ -65,6 +66,10 @@ const CANONICAL = {
   intake: "/v1/immigration/intake",
   promote: "/v1/immigration/promote",
   links: "/v1/immigration/links",
+} as const;
+
+const SIGIL = {
+  modelPromoteImmigration: "/sigil/admin/models/promote-immigration",
 } as const;
 
 const CONTROL_ROOM = {
@@ -3793,6 +3798,10 @@ export default {
 
     try {
       const url = new URL(request.url);
+
+      if (url.pathname === SIGIL.modelPromoteImmigration) {
+        return await handleModelPromoteImmigration(request, env);
+      }
 
       if (
         request.method === "OPTIONS" &&
